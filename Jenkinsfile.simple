@@ -1,0 +1,40 @@
+pipeline {
+    agent any
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+        
+        stage('Install Dependencies') {
+            steps {
+                sh 'npm install'
+            }
+        }
+        
+        stage('Install Playwright') {
+            steps {
+                sh 'npx playwright install --with-deps chromium'
+            }
+        }
+        
+        stage('Run Sanity Tests') {
+            steps {
+                sh 'npm run test:sanity'
+            }
+        }
+    }
+    
+    post {
+        always {
+            publishHTML([
+                reportDir: 'playwright-report',
+                reportFiles: 'index.html',
+                reportName: 'Playwright Test Report'
+            ])
+        }
+    }
+}
+
