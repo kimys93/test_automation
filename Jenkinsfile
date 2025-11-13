@@ -1,10 +1,6 @@
 pipeline {
     agent any
     
-    environment {
-        NODE_VERSION = '18'
-    }
-    
     stages {
         stage('Checkout') {
             steps {
@@ -13,34 +9,42 @@ pipeline {
             }
         }
         
-        stage('Setup Node.js') {
-            steps {
-                echo 'Setting up Node.js...'
-                script {
-                    def nodejs = tool name: 'NodeJS', type: 'jenkins.plugins.nodejs.tools.NodeJSInstallation'
-                    env.PATH = "${nodejs}/bin:${env.PATH}"
-                }
-            }
-        }
-        
         stage('Install Dependencies') {
             steps {
                 echo 'Installing npm dependencies...'
-                sh 'npm install'
+                script {
+                    if (isUnix()) {
+                        sh 'npm install'
+                    } else {
+                        bat 'npm install'
+                    }
+                }
             }
         }
         
         stage('Install Playwright Browsers') {
             steps {
                 echo 'Installing Playwright browsers...'
-                sh 'npx playwright install --with-deps chromium'
+                script {
+                    if (isUnix()) {
+                        sh 'npx playwright install --with-deps chromium'
+                    } else {
+                        bat 'npx playwright install --with-deps chromium'
+                    }
+                }
             }
         }
         
         stage('Run Sanity Tests') {
             steps {
                 echo 'Running Sanity tests...'
-                sh 'npm run test:sanity'
+                script {
+                    if (isUnix()) {
+                        sh 'npm run test:sanity'
+                    } else {
+                        bat 'npm run test:sanity'
+                    }
+                }
             }
             post {
                 always {
