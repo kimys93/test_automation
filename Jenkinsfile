@@ -3,6 +3,7 @@ pipeline {
     
     environment {
         JAVA_TOOL_OPTIONS = '-Dfile.encoding=UTF-8'
+        PYTHONIOENCODING = 'UTF-8'
     }
     
     stages {
@@ -65,7 +66,7 @@ pipeline {
         stage('Run Sanity Tests') {
             steps {
                 echo 'Running Sanity tests...'
-                bat 'npm run test:sanity'
+                bat 'chcp 65001 >nul && npm run test:sanity'
             }
             post {
                 always {
