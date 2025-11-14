@@ -11,11 +11,6 @@ pipeline {
         PYTHONIOENCODING = 'UTF-8'
         LANG = 'ko_KR.UTF-8'
         LC_ALL = 'ko_KR.UTF-8'
-        
-        // Slack Webhook URL 설정 방법:
-        // 1. Jenkins 관리 → Credentials → Secret text 추가 (ID: slack-webhook-url)
-        // 2. 또는 환경 변수로 직접 설정
-        SLACK_WEBHOOK_URL = credentials('slack-webhook-url')
     }
     
     stages {
@@ -125,14 +120,15 @@ pipeline {
         
         stage('Send to Slack') {
             steps {
-                script {
-                    def testJobUrl = "${env.JENKINS_URL}job/test_automation/"
-                    def buildUrl = env.BUILD_URL ?: 'N/A'
-                    def status = env.TEST_FAILED.toInteger() > 0 ? '❌ FAILED' : '✅ PASSED'
-                    def color = env.TEST_FAILED.toInteger() > 0 ? 'danger' : 'good'
-                    
-                    // Slack 메시지 구성 (영문 사용으로 인코딩 문제 방지)
-                    def message = """
+                withCredentials([string(credentialsId: 'slack-webhook-url', variable: 'SLACK_WEBHOOK_URL')]) {
+                    script {
+                        def testJobUrl = "${env.JENKINS_URL}job/test_automation/"
+                        def buildUrl = env.BUILD_URL ?: 'N/A'
+                        def status = env.TEST_FAILED.toInteger() > 0 ? '❌ FAILED' : '✅ PASSED'
+                        def color = env.TEST_FAILED.toInteger() > 0 ? 'danger' : 'good'
+                        
+                        // Slack 메시지 구성 (영문 사용으로 인코딩 문제 방지)
+                        def message = """
 🚀 *Test Automation Results* ${status}
 
 📊 *Test Summary*
@@ -145,36 +141,37 @@ pipeline {
 • Test Report: ${testJobUrl}
 • Build: ${buildUrl}
 """
-                    
-                    // Slack 전송 (HTTP POST)
-                    def payload = [
-                        text: message,
-                        username: 'Jenkins Test Bot',
-                        icon_emoji: ':robot_face:',
-                        attachments: [[
-                            color: color,
-                            fields: [
-                                [title: 'Total', value: env.TEST_TOTAL, short: true],
-                                [title: 'Passed', value: env.TEST_PASSED, short: true],
-                                [title: 'Failed', value: env.TEST_FAILED, short: true],
-                                [title: 'Skipped', value: env.TEST_SKIPPED, short: true]
-                            ]
-                        ]]
-                    ]
-                    
-                    // UTF-8 인코딩으로 JSON 생성
-                    def jsonPayload = groovy.json.JsonOutput.toJson(payload)
-                    
-                    // HTTP Request에서 UTF-8 charset 명시
-                    httpRequest(
-                        httpMode: 'POST',
-                        url: "${env.SLACK_WEBHOOK_URL}",
-                        contentType: 'APPLICATION_JSON; charset=UTF-8',
-                        requestBody: jsonPayload,
-                        validResponseCodes: '200:299'
-                    )
-                    
-                    echo 'Slack notification sent successfully'
+                        
+                        // Slack 전송 (HTTP POST)
+                        def payload = [
+                            text: message,
+                            username: 'Jenkins Test Bot',
+                            icon_emoji: ':robot_face:',
+                            attachments: [[
+                                color: color,
+                                fields: [
+                                    [title: 'Total', value: env.TEST_TOTAL, short: true],
+                                    [title: 'Passed', value: env.TEST_PASSED, short: true],
+                                    [title: 'Failed', value: env.TEST_FAILED, short: true],
+                                    [title: 'Skipped', value: env.TEST_SKIPPED, short: true]
+                                ]
+                            ]]
+                        ]
+                        
+                        // UTF-8 인코딩으로 JSON 생성
+                        def jsonPayload = groovy.json.JsonOutput.toJson(payload)
+                        
+                        // HTTP Request (contentType은 APPLICATION_JSON만 사용)
+                        httpRequest(
+                            httpMode: 'POST',
+                            url: "${env.SLACK_WEBHOOK_URL}",
+                            contentType: 'APPLICATION_JSON',
+                            requestBody: jsonPayload,
+                            validResponseCodes: '200:299'
+                        )
+                        
+                        echo 'Slack notification sent successfully'
+                    }
                 }
             }
         }
