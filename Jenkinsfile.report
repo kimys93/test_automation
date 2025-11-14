@@ -6,6 +6,12 @@ pipeline {
     }
     
     environment {
+        // 인코딩 설정 (한글 지원)
+        JAVA_TOOL_OPTIONS = '-Dfile.encoding=UTF-8 -Dconsole.encoding=UTF-8'
+        PYTHONIOENCODING = 'UTF-8'
+        LANG = 'ko_KR.UTF-8'
+        LC_ALL = 'ko_KR.UTF-8'
+        
         // Slack Webhook URL 설정 방법:
         // 1. Jenkins 관리 → Credentials → Secret text 추가 (ID: slack-webhook-url)
         // 2. 또는 환경 변수로 직접 설정
@@ -111,7 +117,7 @@ pipeline {
                     def status = env.TEST_FAILED.toInteger() > 0 ? '❌ FAILED' : '✅ PASSED'
                     def color = env.TEST_FAILED.toInteger() > 0 ? 'danger' : 'good'
                     
-                    // Slack 메시지 구성
+                    // Slack 메시지 구성 (영문 사용으로 인코딩 문제 방지)
                     def message = """
 🚀 *Test Automation Results* ${status}
 
@@ -142,13 +148,16 @@ pipeline {
                         ]]
                     ]
                     
+                    // UTF-8 인코딩으로 JSON 생성
                     def jsonPayload = groovy.json.JsonOutput.toJson(payload)
                     
+                    // HTTP Request에서 UTF-8 charset 명시
                     httpRequest(
                         httpMode: 'POST',
                         url: "${env.SLACK_WEBHOOK_URL}",
-                        contentType: 'APPLICATION_JSON',
-                        requestBody: jsonPayload
+                        contentType: 'APPLICATION_JSON; charset=UTF-8',
+                        requestBody: jsonPayload,
+                        validResponseCodes: '200:299'
                     )
                     
                     echo 'Slack notification sent successfully'
