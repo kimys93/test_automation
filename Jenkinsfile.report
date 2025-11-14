@@ -246,8 +246,6 @@ pipeline {
                         echo "=== Step 7: JSON payload check ==="
                         echo "JSON length: ${jsonPayload.length()}"
                         echo "JSON contains 한글: ${jsonPayload.contains('테스트')}"
-                        def jsonBytes = jsonPayload.getBytes('UTF-8')
-                        echo "JSON UTF-8 bytes length: ${jsonBytes.length}"
                         
                         // HTTP Request (UTF-8 인코딩 명시)
                         // Windows에서 한글 인코딩 문제 해결을 위해 PowerShell 스크립트 파일 사용
@@ -257,14 +255,15 @@ pipeline {
                         // 디버깅: 파일 쓰기 전 확인
                         echo "=== Step 8: Writing JSON file ==="
                         echo "JSON payload to write length: ${jsonPayload.length()}"
+                        
+                        // UTF-8로 파일 저장 (writeFile이 UTF-8로 저장함)
                         writeFile file: jsonFile, text: jsonPayload, encoding: 'UTF-8'
                         
                         // 디버깅: 파일 쓰기 후 확인
                         def writtenFile = readFile file: jsonFile, encoding: 'UTF-8'
                         echo "Written file length: ${writtenFile.length()}"
-                        echo "Written file contains 한글: ${writtenFile.contains('테스트')}"
                         
-                        // PowerShell 스크립트 파일 생성 (한글 제거하여 인코딩 문제 방지)
+                        // PowerShell 스크립트 파일 생성
                         def psScriptContent = """
                             Write-Host "=== Step 9: PowerShell script execution ==="
                             \$json = Get-Content -Path '${jsonFile}' -Encoding UTF8 -Raw
@@ -272,7 +271,7 @@ pipeline {
                             \$bytes = [System.Text.Encoding]::UTF8.GetBytes(\$json)
                             Write-Host "UTF-8 bytes length: \$(\$bytes.Length)"
                             Write-Host "Sending to Slack..."
-                            Invoke-WebRequest -Uri '${env.SLACK_WEBHOOK_URL}' -Method POST -ContentType 'application/json; charset=utf-8' -Body \$bytes
+                            Invoke-WebRequest -Uri '${env.SLACK_WEBHOOK_URL}' -Method POST -ContentType 'application/json; charset=utf-8' -Body \$bytes -UseBasicParsing | Out-Null
                             Write-Host "Slack notification sent successfully"
                         """
                         writeFile file: psScript, text: psScriptContent, encoding: 'UTF-8'
