@@ -207,18 +207,28 @@ pipeline {
                         def jsonPayload = groovy.json.JsonOutput.toJson(payload)
                         
                         // HTTP Request (UTF-8 인코딩 명시)
-                        // Windows에서 한글 인코딩 문제 해결을 위해 PowerShell 사용
+                        // Windows에서 한글 인코딩 문제 해결을 위해 PowerShell 스크립트 파일 사용
                         def jsonFile = 'slack_payload.json'
+                        def psScript = 'send_slack.ps1'
                         writeFile file: jsonFile, text: jsonPayload, encoding: 'UTF-8'
                         
+                        // PowerShell 스크립트 파일 생성
+                        def psScriptContent = """
+                            \$json = Get-Content -Path '${jsonFile}' -Encoding UTF8 -Raw
+                            \$bytes = [System.Text.Encoding]::UTF8.GetBytes(\$json)
+                            Invoke-WebRequest -Uri '${env.SLACK_WEBHOOK_URL}' -Method POST -ContentType 'application/json; charset=utf-8' -Body \$bytes
+                        """
+                        writeFile file: psScript, text: psScriptContent, encoding: 'UTF-8'
+                        
+                        // PowerShell 스크립트 실행
                         bat """
                             @echo off
                             chcp 65001 >nul
-                            powershell -Command "$json = Get-Content -Path '%CD%\\${jsonFile}' -Encoding UTF8 -Raw; $bytes = [System.Text.Encoding]::UTF8.GetBytes($json); Invoke-WebRequest -Uri '${env.SLACK_WEBHOOK_URL}' -Method POST -ContentType 'application/json; charset=utf-8' -Body $bytes"
+                            powershell -ExecutionPolicy Bypass -File ${psScript}
                         """
                         
                         // 임시 파일 삭제
-                        bat "del /f ${jsonFile}"
+                        bat "del /f ${jsonFile} ${psScript}"
                         
                         echo 'Slack notification sent successfully'
                     }
