@@ -31,6 +31,14 @@ pipeline {
                     if (!fileExists('results.json')) {
                         error 'Test results file not found. Make sure test_automation job completed successfully.'
                     }
+                    
+                    // JSON 파일 크기 확인
+                    def fileSize = bat(script: 'powershell -Command "(Get-Item results.json).Length"', returnStdout: true).trim()
+                    echo "results.json file size: ${fileSize} bytes"
+                    
+                    if (fileSize == '0' || fileSize == '') {
+                        error 'Test results file is empty. Make sure tests were executed and results.json was generated.'
+                    }
                 }
             }
         }
@@ -48,74 +56,86 @@ pipeline {
                     
                     // 디버깅: JSON 구조 확인
                     echo "Parsing test results JSON..."
-                    if (resultsJson.stats instanceof Map) {
-                        echo "Found stats object: ${resultsJson.stats}"
-                    }
-                    if (resultsJson.suites instanceof List) {
-                        echo "Found ${resultsJson.suites.size()} suites"
+                    
+                    // stats 객체 확인 및 사용
+                    def statsFound = false
+                    if (resultsJson.containsKey('stats') && resultsJson.stats instanceof Map) {
+                        def stats = resultsJson.stats
+                        if (stats.containsKey('total')) {
+                            totalTests = stats.total instanceof Number ? stats.total : 0
+                            passedTests = stats.containsKey('passed') && stats.passed instanceof Number ? stats.passed : 0
+                            failedTests = stats.containsKey('failed') && stats.failed instanceof Number ? stats.failed : 0
+                            skippedTests = stats.containsKey('skipped') && stats.skipped instanceof Number ? stats.skipped : 0
+                            statsFound = true
+                            echo "Using stats object: Total=${totalTests}, Passed=${passedTests}, Failed=${failedTests}, Skipped=${skippedTests}"
+                        }
                     }
                     
-                    // 방법 1: stats 객체 우선 사용 (가장 정확)
-                    if (resultsJson.stats instanceof Map) {
-                        totalTests = resultsJson.stats.total ?: 0
-                        passedTests = resultsJson.stats.passed ?: 0
-                        failedTests = resultsJson.stats.failed ?: 0
-                        skippedTests = resultsJson.stats.skipped ?: 0
-                        echo "Using stats object: Total=${totalTests}, Passed=${passedTests}, Failed=${failedTests}, Skipped=${skippedTests}"
-                    }
-                    
-                    // 방법 2: stats가 없거나 0이면 suites 배열 직접 접근 (for 루프만 사용, 클로저 없음)
-                    if (totalTests == 0 && resultsJson.suites instanceof List) {
-                        echo "Stats not available, parsing suites array..."
-                        for (int i = 0; i < resultsJson.suites.size(); i++) {
-                            def suite = resultsJson.suites[i]
-                            if (suite instanceof Map && suite.specs instanceof List) {
-                                for (int j = 0; j < suite.specs.size(); j++) {
-                                    def spec = suite.specs[j]
-                                    if (spec instanceof Map && spec.tests instanceof List) {
-                                        for (int k = 0; k < spec.tests.size(); k++) {
-                                            def test = spec.tests[k]
-                                            if (test instanceof Map) {
-                                                totalTests++
-                                                
-                                                if (test.results instanceof List && test.results.size() > 0) {
-                                                    def hasPassed = false
-                                                    def hasFailed = false
-                                                    def hasSkipped = false
+                    // stats가 없거나 0이면 suites 배열 파싱
+                    if (!statsFound || totalTests == 0) {
+                        if (resultsJson.containsKey('suites') && resultsJson.suites instanceof List) {
+                            echo "Stats not available or zero, parsing ${resultsJson.suites.size()} suites..."
+                            
+                            // 카운터 초기화 (stats가 0이었을 경우)
+                            if (statsFound && totalTests == 0) {
+                                totalTests = 0
+                                passedTests = 0
+                                failedTests = 0
+                                skippedTests = 0
+                            }
+                            
+                            for (int i = 0; i < resultsJson.suites.size(); i++) {
+                                def suite = resultsJson.suites[i]
+                                if (suite instanceof Map && suite.containsKey('specs') && suite.specs instanceof List) {
+                                    for (int j = 0; j < suite.specs.size(); j++) {
+                                        def spec = suite.specs[j]
+                                        if (spec instanceof Map && spec.containsKey('tests') && spec.tests instanceof List) {
+                                            for (int k = 0; k < spec.tests.size(); k++) {
+                                                def test = spec.tests[k]
+                                                if (test instanceof Map) {
+                                                    totalTests++
                                                     
-                                                    for (int l = 0; l < test.results.size(); l++) {
-                                                        def result = test.results[l]
-                                                        if (result instanceof Map && result.status) {
-                                                            def status = result.status.toString()
-                                                            if (status == 'passed') {
-                                                                hasPassed = true
-                                                            } else if (status == 'failed') {
-                                                                hasFailed = true
-                                                            } else if (status == 'skipped') {
-                                                                hasSkipped = true
+                                                    if (test.containsKey('results') && test.results instanceof List && test.results.size() > 0) {
+                                                        def hasPassed = false
+                                                        def hasFailed = false
+                                                        def hasSkipped = false
+                                                        
+                                                        for (int l = 0; l < test.results.size(); l++) {
+                                                            def result = test.results[l]
+                                                            if (result instanceof Map && result.containsKey('status')) {
+                                                                def status = result.status.toString()
+                                                                if (status == 'passed') {
+                                                                    hasPassed = true
+                                                                } else if (status == 'failed') {
+                                                                    hasFailed = true
+                                                                } else if (status == 'skipped') {
+                                                                    hasSkipped = true
+                                                                }
                                                             }
                                                         }
-                                                    }
-                                                    
-                                                    if (hasPassed) {
-                                                        passedTests++
-                                                    } else if (hasFailed) {
-                                                        failedTests++
-                                                    } else if (hasSkipped) {
-                                                        skippedTests++
+                                                        
+                                                        if (hasPassed) {
+                                                            passedTests++
+                                                        } else if (hasFailed) {
+                                                            failedTests++
+                                                        } else if (hasSkipped) {
+                                                            skippedTests++
+                                                        } else {
+                                                            skippedTests++
+                                                        }
                                                     } else {
                                                         skippedTests++
                                                     }
-                                                } else {
-                                                    skippedTests++
                                                 }
                                             }
                                         }
                                     }
                                 }
                             }
+                            echo "Parsed from suites: Total=${totalTests}, Passed=${passedTests}, Failed=${failedTests}, Skipped=${skippedTests}"
+                        } else {
+                            echo "WARNING: No 'suites' array found in JSON"
                         }
-                        echo "Parsed from suites: Total=${totalTests}, Passed=${passedTests}, Failed=${failedTests}, Skipped=${skippedTests}"
                     }
                     
                     env.TEST_TOTAL = "${totalTests}"
