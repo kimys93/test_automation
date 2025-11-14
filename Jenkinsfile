@@ -1,121 +1,59 @@
 pipeline {
     agent any
     
+    tools {
+        nodejs 'NodeJS'
+    }
+    
     environment {
-        JAVA_TOOL_OPTIONS = '-Dfile.encoding=UTF-8 -Dconsole.encoding=UTF-8'
-        PYTHONIOENCODING = 'UTF-8'
-        LANG = 'ko_KR.UTF-8'
-        LC_ALL = 'ko_KR.UTF-8'
         PATH = "/usr/bin:/bin:/usr/sbin:/sbin:${env.PATH}"
     }
     
     stages {
         stage('Checkout') {
             steps {
-                echo 'Checking out source code...'
                 checkout scm
-            }
-        }
-        
-        stage('Setup Node.js') {
-            steps {
-                script {
-                    echo 'Setting up Node.js...'
-                    def nodejs = tool 'NodeJS'
-                    env.PATH = "${nodejs}:${env.PATH}"
-                    sh 'node --version'
-                    sh 'npm --version'
-                }
             }
         }
         
         stage('Install Dependencies') {
             steps {
-                script {
-                    if (fileExists('node_modules')) {
-                        echo 'node_modules already exists, skipping npm install'
-                    } else {
-                        echo 'Installing npm dependencies...'
-                        sh 'npm install'
-                    }
-                }
-            }
-        }
-        
-        stage('Install Playwright Browsers') {
-            steps {
-                script {
-                    def chromiumInstalled = false
-                    try {
-                        def result = sh(
-                            script: 'test -d ~/.cache/ms-playwright/chromium* && echo exists || echo not_exists',
-                            returnStdout: true
-                        ).trim()
-                        chromiumInstalled = result.contains('exists')
-                    } catch (Exception e) {
-                        // 확인 실패 시 설치 진행
-                    }
-                    
-                    if (chromiumInstalled || fileExists('node_modules/.cache/playwright')) {
-                        echo 'Playwright browsers already installed, skipping installation'
-                    } else {
-                        echo 'Installing Playwright browsers...'
-                        sh 'npx playwright install'
-                    }
-                }
+                sh 'npm ci'
+                sh 'npx playwright install'
             }
         }
         
         stage('Run Sanity Tests') {
             steps {
                 script {
-                    echo 'Running Sanity tests...'
-                    def testExitCode = sh(
-                        script: 'npm run test:sanity',
-                        returnStatus: true
-                    )
-                    
-                    if (testExitCode != 0) {
+                    try {
+                        sh 'npm run test:sanity'
+                    } catch (Exception e) {
+                        echo "테스트 실행 중 오류 발생: ${e.message}"
                         currentBuild.result = 'UNSTABLE'
-                        echo "Tests failed with exit code: ${testExitCode}"
-                    } else {
-                        echo 'All tests passed'
                     }
                 }
             }
-            post {
-                always {
-                    script {
-                        echo 'Publishing test results...'
-                        if (fileExists('playwright-report/index.html')) {
-                            publishHTML([
-                                reportDir: 'playwright-report',
-                                reportFiles: 'index.html',
-                                reportName: 'Playwright Test Report'
-                            ])
-                            echo 'Playwright HTML report published'
-                        }
-                        
-                        if (fileExists('playwright-report')) {
-                            archiveArtifacts(
-                                artifacts: 'playwright-report/**/*',
-                                allowEmptyArchive: true
-                            )
-                        }
-                        
-                        if (fileExists('test-results/results.json')) {
-                            archiveArtifacts(
-                                artifacts: 'test-results/results.json',
-                                allowEmptyArchive: true
-                            )
-                        }
-                        
-                        if (fileExists('test-results')) {
-                            archiveArtifacts(
-                                artifacts: 'test-results/**/*',
-                                allowEmptyArchive: true
-                            )
-                        }
+        }
+        
+        stage('Process Test Results') {
+            steps {
+                script {
+                    if (fileExists('playwright-report') && fileExists('test-results')) {
+                        sh 'chmod -R 755 playwright-report'
+                        sh 'chmod -R 755 test-results'
+                        publishHTML([
+                            allowMissing: false,
+                            alwaysLinkToLastBuild: false,
+                            keepAll: true,
+                            reportDir: 'playwright-report',
+                            reportFiles: 'index.html',
+                            reportName: 'Playwright Report'
+                        ])
+                        archiveArtifacts(
+                            artifacts: 'playwright-report/**/*,test-results/**/*',
+                            fingerprint: true
+                        )
                     }
                 }
             }
@@ -124,13 +62,10 @@ pipeline {
     
     post {
         always {
-            echo 'Build completed'
             script {
                 if (fileExists('test-results/results.json')) {
                     try {
-                        echo 'Parsing test results and sending Slack notification...'
                         def resultsJson = readJSON file: 'test-results/results.json'
-                        
                         def totalTests = 0
                         def passedTests = 0
                         def failedTests = 0
@@ -138,54 +73,33 @@ pipeline {
                         
                         if (resultsJson.containsKey('stats') && resultsJson.stats instanceof Map) {
                             def stats = resultsJson.stats
-                            def expected = stats.containsKey('expected') && stats.expected instanceof Number ? stats.expected : 0
-                            def unexpected = stats.containsKey('unexpected') && stats.unexpected instanceof Number ? stats.unexpected : 0
-                            skippedTests = stats.containsKey('skipped') && stats.skipped instanceof Number ? stats.skipped : 0
-                            def flaky = stats.containsKey('flaky') && stats.flaky instanceof Number ? stats.flaky : 0
+                            def expected = stats.containsKey('expected') ? stats.expected : 0
+                            def unexpected = stats.containsKey('unexpected') ? stats.unexpected : 0
+                            skippedTests = stats.containsKey('skipped') ? stats.skipped : 0
+                            def flaky = stats.containsKey('flaky') ? stats.flaky : 0
                             
                             totalTests = expected + unexpected + skippedTests + flaky
                             passedTests = expected
                             failedTests = unexpected
                         }
                         
-                        def testJobUrl = "${env.JENKINS_URL}job/${env.JOB_NAME}/"
-                        def buildUrl = env.BUILD_URL ?: 'N/A'
-                        def status = failedTests > 0 ? 'FAILED' : 'PASSED'
-                        def color = failedTests > 0 ? 'danger' : 'good'
-                        
-                        def message = """테스트 자동화 결과: ${status}
-
-테스트 요약:
-• 전체: ${totalTests}
-• Passed: ${passedTests}
-• Failed: ${failedTests}
-• Skipped: ${skippedTests}
-
-링크:
-• 테스트 리포트: ${testJobUrl}
-• 빌드: ${buildUrl}"""
+                        def testStatus = failedTests > 0 ? 'Fail' : 'Success'
+                        def artifactUrl = "${env.JOB_URL}lastBuild/artifact/playwright-report/index.html"
+                        def message = """Test Status:
+Total Tests: ${totalTests}, Passed: ${passedTests}, Failed: ${failedTests} - (<${artifactUrl}|Open>)
+${testStatus == 'Success' ? '\n:white_check_mark: Success - 모든 테스트 성공' : '\n:red_circle: Fail - 실패한 케이스 확인 필요'}"""
                         
                         slackSend(
                             channel: '#ngle-전체',
-                            color: color,
+                            color: testStatus == 'Success' ? 'good' : 'danger',
                             message: message,
                             tokenCredentialId: 'slack-token'
                         )
-                        echo 'Slack notification sent successfully'
                     } catch (Exception e) {
                         echo "Could not send Slack notification: ${e.message}"
                     }
                 }
             }
-        }
-        success {
-            echo 'Build succeeded!'
-        }
-        failure {
-            echo 'Build failed!'
-        }
-        unstable {
-            echo 'Build unstable (tests failed)!'
         }
     }
 }
