@@ -57,18 +57,23 @@ pipeline {
                     // 디버깅: JSON 구조 확인
                     echo "Parsing test results JSON..."
                     
-                    // stats 객체 확인 및 사용
+                    // stats 객체 확인 및 사용 (Playwright JSON 리포트 구조)
                     def statsFound = false
                     if (resultsJson.containsKey('stats') && resultsJson.stats instanceof Map) {
                         def stats = resultsJson.stats
-                        if (stats.containsKey('total')) {
-                            totalTests = stats.total instanceof Number ? stats.total : 0
-                            passedTests = stats.containsKey('passed') && stats.passed instanceof Number ? stats.passed : 0
-                            failedTests = stats.containsKey('failed') && stats.failed instanceof Number ? stats.failed : 0
-                            skippedTests = stats.containsKey('skipped') && stats.skipped instanceof Number ? stats.skipped : 0
-                            statsFound = true
-                            echo "Using stats object: Total=${totalTests}, Passed=${passedTests}, Failed=${failedTests}, Skipped=${skippedTests}"
-                        }
+                        // Playwright는 expected, unexpected, skipped, flaky를 사용
+                        def expected = stats.containsKey('expected') && stats.expected instanceof Number ? stats.expected : 0
+                        def unexpected = stats.containsKey('unexpected') && stats.unexpected instanceof Number ? stats.unexpected : 0
+                        skippedTests = stats.containsKey('skipped') && stats.skipped instanceof Number ? stats.skipped : 0
+                        def flaky = stats.containsKey('flaky') && stats.flaky instanceof Number ? stats.flaky : 0
+                        
+                        // Playwright 구조에 맞게 변환
+                        totalTests = expected + unexpected + skippedTests + flaky
+                        passedTests = expected
+                        failedTests = unexpected
+                        
+                        statsFound = true
+                        echo "Using stats object: Total=${totalTests}, Passed=${passedTests}, Failed=${failedTests}, Skipped=${skippedTests}"
                     }
                     
                     // stats가 없거나 0이면 suites 배열 파싱
@@ -201,15 +206,19 @@ pipeline {
                         // UTF-8 인코딩으로 JSON 생성
                         def jsonPayload = groovy.json.JsonOutput.toJson(payload)
                         
-                        // HTTP Request (customHeaders로 UTF-8 명시)
-                        httpRequest(
-                            httpMode: 'POST',
-                            url: "${env.SLACK_WEBHOOK_URL}",
-                            contentType: 'APPLICATION_JSON',
-                            customHeaders: [[name: 'Content-Type', value: 'application/json; charset=utf-8']],
-                            requestBody: jsonPayload,
-                            validResponseCodes: '200:299'
-                        )
+                        // HTTP Request (UTF-8 인코딩 명시)
+                        // Windows에서 한글 인코딩 문제 해결을 위해 PowerShell 사용
+                        def jsonFile = 'slack_payload.json'
+                        writeFile file: jsonFile, text: jsonPayload, encoding: 'UTF-8'
+                        
+                        bat """
+                            @echo off
+                            chcp 65001 >nul
+                            powershell -Command "$json = Get-Content -Path '%CD%\\${jsonFile}' -Encoding UTF8 -Raw; $bytes = [System.Text.Encoding]::UTF8.GetBytes($json); Invoke-WebRequest -Uri '${env.SLACK_WEBHOOK_URL}' -Method POST -ContentType 'application/json; charset=utf-8' -Body $bytes"
+                        """
+                        
+                        // 임시 파일 삭제
+                        bat "del /f ${jsonFile}"
                         
                         echo 'Slack notification sent successfully'
                     }
