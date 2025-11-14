@@ -39,25 +39,57 @@ pipeline {
                 script {
                     def resultsJson = readJSON file: 'results.json'
                     
+                    // JSON 구조 디버깅 (필요시)
+                    echo "JSON keys: ${resultsJson.keySet()}"
+                    
                     // Playwright JSON 리포트 구조에 맞게 파싱
-                    def suites = resultsJson.suites || []
                     def totalTests = 0
                     def passedTests = 0
                     def failedTests = 0
                     def skippedTests = 0
                     
-                    suites.each { suite ->
-                        suite.specs?.each { spec ->
-                            spec.tests?.each { test ->
-                                totalTests++
-                                if (test.results?.some { it.status == 'passed' }) {
-                                    passedTests++
-                                } else if (test.results?.some { it.status == 'failed' }) {
-                                    failedTests++
-                                } else {
-                                    skippedTests++
+                    // Playwright JSON 리포트는 suites 배열을 가짐
+                    if (resultsJson.suites && resultsJson.suites instanceof List) {
+                        resultsJson.suites.each { suite ->
+                            // suite는 specs 배열을 가짐
+                            if (suite.specs && suite.specs instanceof List) {
+                                suite.specs.each { spec ->
+                                    // spec은 tests 배열을 가짐
+                                    if (spec.tests && spec.tests instanceof List) {
+                                        spec.tests.each { test ->
+                                            totalTests++
+                                            // test는 results 배열을 가짐
+                                            if (test.results && test.results instanceof List) {
+                                                def hasPassed = test.results.any { it.status == 'passed' }
+                                                def hasFailed = test.results.any { it.status == 'failed' }
+                                                
+                                                if (hasPassed) {
+                                                    passedTests++
+                                                } else if (hasFailed) {
+                                                    failedTests++
+                                                } else {
+                                                    skippedTests++
+                                                }
+                                            } else {
+                                                // results가 없으면 skipped로 처리
+                                                skippedTests++
+                                            }
+                                        }
+                                    }
                                 }
                             }
+                        }
+                    } else {
+                        // 대체 방법: stats 객체가 있는 경우
+                        if (resultsJson.stats) {
+                            totalTests = resultsJson.stats.total ?: 0
+                            passedTests = resultsJson.stats.passed ?: 0
+                            failedTests = resultsJson.stats.failed ?: 0
+                            skippedTests = resultsJson.stats.skipped ?: 0
+                        } else {
+                            echo "Warning: Could not parse test results. JSON structure may be different."
+                            echo "Available keys: ${resultsJson.keySet()}"
+                            totalTests = 0
                         }
                     }
                     
