@@ -264,12 +264,11 @@ pipeline {
                         echo "Written file length: ${writtenFile.length()}"
                         echo "Written file contains 한글: ${writtenFile.contains('테스트')}"
                         
-                        // PowerShell 스크립트 파일 생성
+                        // PowerShell 스크립트 파일 생성 (한글 제거하여 인코딩 문제 방지)
                         def psScriptContent = """
                             Write-Host "=== Step 9: PowerShell script execution ==="
                             \$json = Get-Content -Path '${jsonFile}' -Encoding UTF8 -Raw
                             Write-Host "JSON read length: \$(\$json.Length)"
-                            Write-Host "JSON contains 한글: \$(\$json.Contains('테스트'))"
                             \$bytes = [System.Text.Encoding]::UTF8.GetBytes(\$json)
                             Write-Host "UTF-8 bytes length: \$(\$bytes.Length)"
                             Write-Host "Sending to Slack..."
