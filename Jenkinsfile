@@ -68,7 +68,15 @@ pipeline {
         stage('Run Sanity Tests') {
             steps {
                 echo 'Running Sanity tests...'
-                bat 'chcp 65001 >nul && npm run test:sanity'
+                script {
+                    bat '''
+                        @echo off
+                        chcp 65001 >nul
+                        set NODE_OPTIONS=--no-warnings
+                        set PYTHONIOENCODING=UTF-8
+                        npm run test:sanity
+                    '''
+                }
             }
             post {
                 always {
