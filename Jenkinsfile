@@ -46,10 +46,7 @@ pipeline {
                             publishHTML([
                                 reportDir: 'playwright-report',
                                 reportFiles: 'index.html',
-                                reportName: 'Playwright Test Report',
-                                keepAll: true,
-                                allowMissing: false,
-                                alwaysLinkToLastBuild: true
+                                reportName: 'Playwright Test Report'
                             ])
                             echo 'Playwright HTML report published successfully'
                         } else {
