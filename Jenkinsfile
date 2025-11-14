@@ -21,9 +21,9 @@ pipeline {
                 script {
                     echo 'Setting up Node.js...'
                     def nodejs = tool 'NodeJS'
-                    env.PATH = "${nodejs};${env.PATH}"
-                    bat 'node --version'
-                    bat 'npm --version'
+                    env.PATH = "${nodejs}:${env.PATH}"
+                    sh 'node --version'
+                    sh 'npm --version'
                 }
             }
         }
@@ -35,7 +35,7 @@ pipeline {
                         echo 'node_modules already exists, skipping npm install'
                     } else {
                         echo 'Installing npm dependencies...'
-                        bat 'npm install'
+                        sh 'npm install'
                     }
                 }
             }
@@ -46,8 +46,8 @@ pipeline {
                 script {
                     def chromiumInstalled = false
                     try {
-                        def result = bat(
-                            script: '@echo off && dir /b "%LOCALAPPDATA%\\ms-playwright" 2>nul | findstr /i "chromium" >nul && echo exists || echo not_exists',
+                        def result = sh(
+                            script: 'test -d ~/.cache/ms-playwright/chromium* && echo exists || echo not_exists',
                             returnStdout: true
                         ).trim()
                         chromiumInstalled = result.contains('exists')
@@ -55,11 +55,11 @@ pipeline {
                         // 확인 실패 시 설치 진행
                     }
                     
-                    if (chromiumInstalled || fileExists('node_modules\\.cache\\playwright')) {
+                    if (chromiumInstalled || fileExists('node_modules/.cache/playwright')) {
                         echo 'Playwright browsers already installed, skipping installation'
                     } else {
                         echo 'Installing Playwright browsers...'
-                        bat 'npx playwright install'
+                        sh 'npx playwright install'
                     }
                 }
             }
@@ -69,7 +69,7 @@ pipeline {
             steps {
                 script {
                     echo 'Running Sanity tests...'
-                    def testExitCode = bat(
+                    def testExitCode = sh(
                         script: 'npm run test:sanity',
                         returnStatus: true
                     )
