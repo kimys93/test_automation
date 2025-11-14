@@ -37,7 +37,7 @@ pipeline {
         stage('Install Playwright Browsers') {
             steps {
                 echo 'Installing Playwright browsers...'
-                bat 'npx playwright install --with-deps chromium'
+                bat 'npx playwright install'
             }
         }
         
@@ -79,6 +79,15 @@ pipeline {
                             )
                         }
                         
+                        // 테스트 결과 JSON 파일 보관 (Slack 전송용)
+                        if (fileExists('test-results/results.json')) {
+                            archiveArtifacts(
+                                artifacts: 'test-results/results.json',
+                                allowEmptyArchive: true
+                            )
+                            echo 'Test results JSON saved for Slack notification'
+                        }
+                        
                         if (fileExists('test-results')) {
                             archiveArtifacts(
                                 artifacts: 'test-results/**/*',
@@ -94,6 +103,25 @@ pipeline {
     post {
         always {
             echo 'Build completed. Check the Playwright Test Report link in the build sidebar.'
+            
+            // 테스트 결과가 있으면 Slack 알림 파이프라인 트리거 (선택적)
+            script {
+                if (fileExists('test-results/results.json')) {
+                    echo 'Triggering Slack notification pipeline...'
+                    try {
+                        build job: 'test_automation_slack', 
+                              parameters: [
+                                  string(name: 'BUILD_NUMBER', value: "${env.BUILD_NUMBER}")
+                              ],
+                              wait: false,
+                              propagate: false
+                        echo 'Slack notification pipeline triggered'
+                    } catch (Exception e) {
+                        echo "Could not trigger Slack notification: ${e.message}"
+                        echo 'You can manually run test_automation_slack job to send notification'
+                    }
+                }
+            }
         }
         success {
             echo 'Build succeeded!'

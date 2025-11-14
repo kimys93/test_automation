@@ -1,0 +1,137 @@
+pipeline {
+    agent any
+    
+    parameters {
+        string(name: 'BUILD_NUMBER', defaultValue: '', description: 'Test build number to get results from')
+    }
+    
+    environment {
+        // Slack Webhook URL 설정 방법:
+        // 1. Jenkins 관리 → Credentials → Secret text 추가 (ID: slack-webhook-url)
+        // 2. 또는 환경 변수로 직접 설정
+        SLACK_WEBHOOK_URL = credentials('slack-webhook-url')
+    }
+    
+    stages {
+        stage('Get Test Results') {
+            steps {
+                script {
+                    def buildNumber = params.BUILD_NUMBER ?: "${env.BUILD_NUMBER}"
+                    
+                    // test_automation 파이프라인의 최신 빌드에서 아티팩트 가져오기
+                    copyArtifacts(
+                        projectName: 'test_automation',
+                        selector: buildNumber ? specific(buildNumber) : lastSuccessful(),
+                        filter: 'test-results/results.json',
+                        target: '.',
+                        flatten: true
+                    )
+                    
+                    if (!fileExists('results.json')) {
+                        error 'Test results file not found. Make sure test_automation job completed successfully.'
+                    }
+                }
+            }
+        }
+        
+        stage('Parse Test Results') {
+            steps {
+                script {
+                    def resultsJson = readJSON file: 'results.json'
+                    
+                    // Playwright JSON 리포트 구조에 맞게 파싱
+                    def suites = resultsJson.suites || []
+                    def totalTests = 0
+                    def passedTests = 0
+                    def failedTests = 0
+                    def skippedTests = 0
+                    
+                    suites.each { suite ->
+                        suite.specs?.each { spec ->
+                            spec.tests?.each { test ->
+                                totalTests++
+                                if (test.results?.some { it.status == 'passed' }) {
+                                    passedTests++
+                                } else if (test.results?.some { it.status == 'failed' }) {
+                                    failedTests++
+                                } else {
+                                    skippedTests++
+                                }
+                            }
+                        }
+                    }
+                    
+                    env.TEST_TOTAL = "${totalTests}"
+                    env.TEST_PASSED = "${passedTests}"
+                    env.TEST_FAILED = "${failedTests}"
+                    env.TEST_SKIPPED = "${skippedTests}"
+                    
+                    echo "Test Summary: Total=${totalTests}, Passed=${passedTests}, Failed=${failedTests}, Skipped=${skippedTests}"
+                }
+            }
+        }
+        
+        stage('Send to Slack') {
+            steps {
+                script {
+                    def testJobUrl = "${env.JENKINS_URL}job/test_automation/"
+                    def buildUrl = env.BUILD_URL ?: 'N/A'
+                    def status = env.TEST_FAILED.toInteger() > 0 ? '❌ FAILED' : '✅ PASSED'
+                    def color = env.TEST_FAILED.toInteger() > 0 ? 'danger' : 'good'
+                    
+                    // Slack 메시지 구성
+                    def message = """
+🚀 *Test Automation Results* ${status}
+
+📊 *Test Summary*
+• Total: ${env.TEST_TOTAL}
+• ✅ Passed: ${env.TEST_PASSED}
+• ❌ Failed: ${env.TEST_FAILED}
+• ⏭️ Skipped: ${env.TEST_SKIPPED}
+
+🔗 *Links*
+• Test Report: ${testJobUrl}
+• Build: ${buildUrl}
+"""
+                    
+                    // Slack 전송 (HTTP POST)
+                    def payload = [
+                        text: message,
+                        username: 'Jenkins Test Bot',
+                        icon_emoji: ':robot_face:',
+                        attachments: [[
+                            color: color,
+                            fields: [
+                                [title: 'Total', value: env.TEST_TOTAL, short: true],
+                                [title: 'Passed', value: env.TEST_PASSED, short: true],
+                                [title: 'Failed', value: env.TEST_FAILED, short: true],
+                                [title: 'Skipped', value: env.TEST_SKIPPED, short: true]
+                            ]
+                        ]]
+                    ]
+                    
+                    def jsonPayload = groovy.json.JsonOutput.toJson(payload)
+                    
+                    httpRequest(
+                        httpMode: 'POST',
+                        url: "${env.SLACK_WEBHOOK_URL}",
+                        contentType: 'APPLICATION_JSON',
+                        requestBody: jsonPayload
+                    )
+                    
+                    echo 'Slack notification sent successfully'
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            echo 'Slack notification pipeline completed'
+        }
+        failure {
+            echo 'Failed to send Slack notification'
+        }
+    }
+}
+
