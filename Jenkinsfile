@@ -2,8 +2,10 @@ pipeline {
     agent any
     
     environment {
-        JAVA_TOOL_OPTIONS = '-Dfile.encoding=UTF-8'
+        JAVA_TOOL_OPTIONS = '-Dfile.encoding=UTF-8 -Dconsole.encoding=UTF-8'
         PYTHONIOENCODING = 'UTF-8'
+        LANG = 'ko_KR.UTF-8'
+        LC_ALL = 'ko_KR.UTF-8'
     }
     
     stages {
