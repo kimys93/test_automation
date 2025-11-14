@@ -12,26 +12,14 @@ pipeline {
         stage('Install Dependencies') {
             steps {
                 echo 'Installing npm dependencies...'
-                script {
-                    if (isUnix()) {
-                        sh 'npm install'
-                    } else {
-                        bat 'npm install'
-                    }
-                }
+                bat 'npm install'
             }
         }
         
         stage('Install Playwright Browsers') {
             steps {
                 echo 'Installing Playwright browsers...'
-                script {
-                    if (isUnix()) {
-                        sh 'npx playwright install --with-deps chromium'
-                    } else {
-                        bat 'npx playwright install --with-deps chromium'
-                    }
-                }
+                bat 'npx playwright install --with-deps chromium'
             }
         }
         
@@ -39,22 +27,50 @@ pipeline {
             steps {
                 echo 'Running Sanity tests...'
                 script {
-                    if (isUnix()) {
-                        sh 'npm run test:sanity'
-                    } else {
-                        bat 'npm run test:sanity'
+                    def testExitCode = bat(
+                        script: 'npm run test:sanity',
+                        returnStatus: true
+                    )
+                    
+                    if (testExitCode != 0) {
+                        currentBuild.result = 'UNSTABLE'
+                        echo "Tests failed with exit code: ${testExitCode}"
                     }
                 }
             }
             post {
                 always {
                     echo 'Publishing test results...'
-                    publishHTML([
-                        reportDir: 'playwright-report',
-                        reportFiles: 'index.html',
-                        reportName: 'Playwright Test Report',
-                        keepAll: true
-                    ])
+                    script {
+                        if (fileExists('playwright-report/index.html')) {
+                            publishHTML([
+                                reportDir: 'playwright-report',
+                                reportFiles: 'index.html',
+                                reportName: 'Playwright Test Report',
+                                keepAll: true,
+                                allowMissing: false,
+                                alwaysLinkToLastBuild: true
+                            ])
+                            echo 'Playwright HTML report published successfully'
+                        } else {
+                            echo 'Warning: Playwright report not found'
+                            bat 'dir playwright-report\\ 2>nul || echo Directory does not exist'
+                        }
+                        
+                        if (fileExists('playwright-report')) {
+                            archiveArtifacts(
+                                artifacts: 'playwright-report/**/*',
+                                allowEmptyArchive: true
+                            )
+                        }
+                        
+                        if (fileExists('test-results')) {
+                            archiveArtifacts(
+                                artifacts: 'test-results/**/*',
+                                allowEmptyArchive: true
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -62,14 +78,16 @@ pipeline {
     
     post {
         always {
-            echo 'Cleaning up...'
-            cleanWs()
+            echo 'Build completed. Check the Playwright Test Report link in the build sidebar.'
         }
         success {
             echo 'Build succeeded!'
         }
         failure {
-            echo 'Build failed!'
+            echo 'Build failed! Check the test report for details.'
+        }
+        unstable {
+            echo 'Build unstable (tests failed but report published)! Check the test report for details.'
         }
     }
 }
