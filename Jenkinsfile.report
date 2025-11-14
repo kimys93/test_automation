@@ -45,9 +45,6 @@ pipeline {
                 script {
                     def resultsJson = readJSON file: 'results.json'
                     
-                    // JSON 구조 디버깅
-                    echo "JSON top-level keys: ${resultsJson.keySet()}"
-                    
                     // Playwright JSON 리포트 구조에 맞게 파싱 (클로저 없이 순수 반복문만 사용)
                     def totalTests = 0
                     def passedTests = 0
@@ -115,7 +112,12 @@ pipeline {
                     
                     if (totalTests == 0) {
                         echo "WARNING: Could not parse test results. JSON structure may be different."
-                        echo "First 500 characters of JSON: ${groovy.json.JsonOutput.toJson(resultsJson).take(500)}"
+                        if (resultsJson.suites instanceof List) {
+                            echo "Number of suites: ${resultsJson.suites.size()}"
+                        }
+                        if (resultsJson.stats instanceof Map) {
+                            echo "Stats object found but values are 0"
+                        }
                     }
                 }
             }
