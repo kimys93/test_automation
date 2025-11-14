@@ -87,7 +87,7 @@ Total Tests: ${totalTests}, Passed: ${passedTests}, Failed: ${failedTests} - (<$
 ${testStatus == 'Success' ? '\n:white_check_mark: Success - 모든 테스트 성공' : '\n:red_circle: Fail - 실패한 케이스 확인 필요'}"""
                         
                         slackSend(
-                            channel: '#ngle-전체',
+                            channel: 'C07KHG2TS48',
                             color: testStatus == 'Success' ? 'good' : 'danger',
                             message: message,
                             tokenCredentialId: 'slack-token'
