@@ -46,8 +46,27 @@ pipeline {
                     def failedTests = 0
                     def skippedTests = 0
                     
-                    // 방법 1: suites 배열 직접 접근 (for 루프만 사용, 클로저 없음)
+                    // 디버깅: JSON 구조 확인
+                    echo "Parsing test results JSON..."
+                    if (resultsJson.stats instanceof Map) {
+                        echo "Found stats object: ${resultsJson.stats}"
+                    }
                     if (resultsJson.suites instanceof List) {
+                        echo "Found ${resultsJson.suites.size()} suites"
+                    }
+                    
+                    // 방법 1: stats 객체 우선 사용 (가장 정확)
+                    if (resultsJson.stats instanceof Map) {
+                        totalTests = resultsJson.stats.total ?: 0
+                        passedTests = resultsJson.stats.passed ?: 0
+                        failedTests = resultsJson.stats.failed ?: 0
+                        skippedTests = resultsJson.stats.skipped ?: 0
+                        echo "Using stats object: Total=${totalTests}, Passed=${passedTests}, Failed=${failedTests}, Skipped=${skippedTests}"
+                    }
+                    
+                    // 방법 2: stats가 없거나 0이면 suites 배열 직접 접근 (for 루프만 사용, 클로저 없음)
+                    if (totalTests == 0 && resultsJson.suites instanceof List) {
+                        echo "Stats not available, parsing suites array..."
                         for (int i = 0; i < resultsJson.suites.size(); i++) {
                             def suite = resultsJson.suites[i]
                             if (suite instanceof Map && suite.specs instanceof List) {
@@ -56,46 +75,47 @@ pipeline {
                                     if (spec instanceof Map && spec.tests instanceof List) {
                                         for (int k = 0; k < spec.tests.size(); k++) {
                                             def test = spec.tests[k]
-                                            totalTests++
-                                            
-                                            if (test instanceof Map && test.results instanceof List) {
-                                                def hasPassed = false
-                                                def hasFailed = false
+                                            if (test instanceof Map) {
+                                                totalTests++
                                                 
-                                                for (int l = 0; l < test.results.size(); l++) {
-                                                    def result = test.results[l]
-                                                    if (result instanceof Map && result.status) {
-                                                        if (result.status == 'passed') {
-                                                            hasPassed = true
-                                                        } else if (result.status == 'failed') {
-                                                            hasFailed = true
+                                                if (test.results instanceof List && test.results.size() > 0) {
+                                                    def hasPassed = false
+                                                    def hasFailed = false
+                                                    def hasSkipped = false
+                                                    
+                                                    for (int l = 0; l < test.results.size(); l++) {
+                                                        def result = test.results[l]
+                                                        if (result instanceof Map && result.status) {
+                                                            def status = result.status.toString()
+                                                            if (status == 'passed') {
+                                                                hasPassed = true
+                                                            } else if (status == 'failed') {
+                                                                hasFailed = true
+                                                            } else if (status == 'skipped') {
+                                                                hasSkipped = true
+                                                            }
                                                         }
                                                     }
-                                                }
-                                                
-                                                if (hasPassed) {
-                                                    passedTests++
-                                                } else if (hasFailed) {
-                                                    failedTests++
+                                                    
+                                                    if (hasPassed) {
+                                                        passedTests++
+                                                    } else if (hasFailed) {
+                                                        failedTests++
+                                                    } else if (hasSkipped) {
+                                                        skippedTests++
+                                                    } else {
+                                                        skippedTests++
+                                                    }
                                                 } else {
                                                     skippedTests++
                                                 }
-                                            } else {
-                                                skippedTests++
                                             }
                                         }
                                     }
                                 }
                             }
                         }
-                    }
-                    
-                    // 방법 2: stats 객체 사용 (대체 방법)
-                    if (totalTests == 0 && resultsJson.stats instanceof Map) {
-                        totalTests = resultsJson.stats.total ?: 0
-                        passedTests = resultsJson.stats.passed ?: 0
-                        failedTests = resultsJson.stats.failed ?: 0
-                        skippedTests = resultsJson.stats.skipped ?: 0
+                        echo "Parsed from suites: Total=${totalTests}, Passed=${passedTests}, Failed=${failedTests}, Skipped=${skippedTests}"
                     }
                     
                     env.TEST_TOTAL = "${totalTests}"
@@ -103,15 +123,15 @@ pipeline {
                     env.TEST_FAILED = "${failedTests}"
                     env.TEST_SKIPPED = "${skippedTests}"
                     
-                    echo "Test Summary: Total=${totalTests}, Passed=${passedTests}, Failed=${failedTests}, Skipped=${skippedTests}"
+                    echo "Final Test Summary: Total=${totalTests}, Passed=${passedTests}, Failed=${failedTests}, Skipped=${skippedTests}"
                     
                     if (totalTests == 0) {
                         echo "WARNING: Could not parse test results. JSON structure may be different."
-                        if (resultsJson.suites instanceof List) {
-                            echo "Number of suites: ${resultsJson.suites.size()}"
+                        if (resultsJson.containsKey('stats')) {
+                            echo "Stats object exists but values are 0"
                         }
-                        if (resultsJson.stats instanceof Map) {
-                            echo "Stats object found but values are 0"
+                        if (resultsJson.containsKey('suites')) {
+                            echo "Suites array exists"
                         }
                     }
                 }
@@ -127,19 +147,19 @@ pipeline {
                         def status = env.TEST_FAILED.toInteger() > 0 ? '❌ FAILED' : '✅ PASSED'
                         def color = env.TEST_FAILED.toInteger() > 0 ? 'danger' : 'good'
                         
-                        // Slack 메시지 구성 (영문 사용으로 인코딩 문제 방지)
+                        // Slack 메시지 구성 (한글과 이모지 포함)
                         def message = """
-🚀 *Test Automation Results* ${status}
+🚀 *테스트 자동화 결과* ${status}
 
-📊 *Test Summary*
-• Total: ${env.TEST_TOTAL}
+📊 *테스트 요약*
+• 전체: ${env.TEST_TOTAL}
 • ✅ Passed: ${env.TEST_PASSED}
-• ❌ Failed: ${env.TEST_FAILED}
-• ⏭️ Skipped: ${env.TEST_SKIPPED}
+• ❌ 실패: ${env.TEST_FAILED}
+• ⏭️ 건너뜀: ${env.TEST_SKIPPED}
 
-🔗 *Links*
-• Test Report: ${testJobUrl}
-• Build: ${buildUrl}
+🔗 *링크*
+• 테스트 리포트: ${testJobUrl}
+• 빌드: ${buildUrl}
 """
                         
                         // Slack 전송 (HTTP POST)
@@ -150,10 +170,10 @@ pipeline {
                             attachments: [[
                                 color: color,
                                 fields: [
-                                    [title: 'Total', value: env.TEST_TOTAL, short: true],
-                                    [title: 'Passed', value: env.TEST_PASSED, short: true],
-                                    [title: 'Failed', value: env.TEST_FAILED, short: true],
-                                    [title: 'Skipped', value: env.TEST_SKIPPED, short: true]
+                                    [title: '전체', value: env.TEST_TOTAL, short: true],
+                                    [title: '통과', value: env.TEST_PASSED, short: true],
+                                    [title: '실패', value: env.TEST_FAILED, short: true],
+                                    [title: '건너뜀', value: env.TEST_SKIPPED, short: true]
                                 ]
                             ]]
                         ]
@@ -161,11 +181,12 @@ pipeline {
                         // UTF-8 인코딩으로 JSON 생성
                         def jsonPayload = groovy.json.JsonOutput.toJson(payload)
                         
-                        // HTTP Request (contentType은 APPLICATION_JSON만 사용)
+                        // HTTP Request (customHeaders로 UTF-8 명시)
                         httpRequest(
                             httpMode: 'POST',
                             url: "${env.SLACK_WEBHOOK_URL}",
                             contentType: 'APPLICATION_JSON',
+                            customHeaders: [[name: 'Content-Type', value: 'application/json; charset=utf-8']],
                             requestBody: jsonPayload,
                             validResponseCodes: '200:299'
                         )
