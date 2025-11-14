@@ -6,6 +6,7 @@ pipeline {
         PYTHONIOENCODING = 'UTF-8'
         LANG = 'ko_KR.UTF-8'
         LC_ALL = 'ko_KR.UTF-8'
+        PATH = "/usr/bin:/bin:/usr/sbin:/sbin:${env.PATH}"
     }
     
     stages {
