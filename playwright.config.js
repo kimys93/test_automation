@@ -1,5 +1,9 @@
 // @ts-check
 import { defineConfig, devices } from '@playwright/test';
+import dotenv from 'dotenv';
+
+// .env 파일에서 환경 변수 로드
+dotenv.config();
 
 /**
  * Playwright 테스트 설정
@@ -29,7 +33,7 @@ export default defineConfig({
   /* 공유 설정 */
   use: {
     /* 기본 URL */
-    baseURL: 'http://localhost:3000',
+    baseURL: process.env.BASE_URL || 'http://localhost:3000',
     /* 브라우저 컨텍스트 옵션 */
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
@@ -59,7 +63,7 @@ export default defineConfig({
   /* 로컬 개발 서버 설정 */
   // webServer: {
   //   command: 'npm start',
-  //   url: 'http://localhost:3000',
+  //   url: process.env.BASE_URL || 'http://localhost:3000',
   //   reuseExistingServer: !process.env.CI,
   // },
 });

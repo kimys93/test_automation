@@ -98,9 +98,30 @@ test-automation/
 
 ## 설정
 
+### 환경 변수 설정
+
+보안을 위해 서버 URL은 환경 변수로 관리합니다.
+
+1. **`.env` 파일 생성**
+   ```bash
+   cp .env.example .env
+   ```
+
+2. **`.env` 파일 편집**
+   ```env
+   BASE_URL=http://192.168.219.103:3000
+   ```
+   실제 테스트 서버의 IP 주소와 포트를 입력하세요.
+
+3. **주의사항**
+   - `.env` 파일은 Git에 커밋되지 않습니다 (`.gitignore`에 포함됨)
+   - 각 환경(로컬, CI/CD 등)에 맞게 별도로 설정하세요
+   - `.env.example` 파일은 템플릿으로만 사용됩니다
+
+### 기타 설정
+
 `playwright.config.js` 파일에서 다음 설정을 변경할 수 있습니다:
 
-- `baseURL`: 테스트할 서버의 기본 URL (기본값: http://localhost:3000)
 - `timeout`: 테스트 실행 최대 시간
 - `workers`: 병렬 실행할 워커 수
 

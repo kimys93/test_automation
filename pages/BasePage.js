@@ -1,3 +1,8 @@
+import dotenv from 'dotenv';
+
+// .env 파일에서 환경 변수 로드
+dotenv.config();
+
 /**
  * 기본 페이지 클래스
  * 모든 페이지 객체의 부모 클래스
@@ -5,7 +10,7 @@
 class BasePage {
   constructor(page) {
     this.page = page;
-    this.baseURL = 'http://localhost:3000';
+    this.baseURL = process.env.BASE_URL || 'http://localhost:3000';
 
   }
 
