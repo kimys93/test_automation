@@ -1,5 +1,7 @@
 pipeline {
-    agent any
+    agent {
+        label ''
+    }
     
     tools {
         nodejs 'Node20'
