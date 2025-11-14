@@ -45,8 +45,8 @@ pipeline {
                 script {
                     def resultsJson = readJSON file: 'results.json'
                     
-                    // JSON 구조 디버깅 (필요시)
-                    echo "JSON keys: ${resultsJson.keySet()}"
+                    // JSON 구조 디버깅
+                    echo "JSON top-level keys: ${resultsJson.keySet()}"
                     
                     // Playwright JSON 리포트 구조에 맞게 파싱
                     def totalTests = 0
@@ -54,48 +54,86 @@ pipeline {
                     def failedTests = 0
                     def skippedTests = 0
                     
-                    // Playwright JSON 리포트는 suites 배열을 가짐
-                    if (resultsJson.suites && resultsJson.suites instanceof List) {
-                        resultsJson.suites.each { suite ->
-                            // suite는 specs 배열을 가짐
-                            if (suite.specs && suite.specs instanceof List) {
-                                suite.specs.each { spec ->
-                                    // spec은 tests 배열을 가짐
-                                    if (spec.tests && spec.tests instanceof List) {
-                                        spec.tests.each { test ->
-                                            totalTests++
-                                            // test는 results 배열을 가짐
-                                            if (test.results && test.results instanceof List) {
-                                                def hasPassed = test.results.any { it.status == 'passed' }
-                                                def hasFailed = test.results.any { it.status == 'failed' }
-                                                
-                                                if (hasPassed) {
-                                                    passedTests++
-                                                } else if (hasFailed) {
-                                                    failedTests++
-                                                } else {
-                                                    skippedTests++
+                    // 재귀적으로 모든 테스트를 찾는 함수
+                    def countTests = { obj ->
+                        if (obj instanceof Map) {
+                            // test 객체인지 확인 (results 배열이 있으면 test)
+                            if (obj.containsKey('results') && obj.results instanceof List) {
+                                totalTests++
+                                def hasPassed = false
+                                def hasFailed = false
+                                
+                                obj.results.each { result ->
+                                    if (result instanceof Map && result.status) {
+                                        if (result.status == 'passed') {
+                                            hasPassed = true
+                                        } else if (result.status == 'failed') {
+                                            hasFailed = true
+                                        }
+                                    }
+                                }
+                                
+                                if (hasPassed) {
+                                    passedTests++
+                                } else if (hasFailed) {
+                                    failedTests++
+                                } else {
+                                    skippedTests++
+                                }
+                            } else {
+                                // Map의 모든 값에 대해 재귀 호출
+                                obj.each { key, value ->
+                                    countTests(value)
+                                }
+                            }
+                        } else if (obj instanceof List) {
+                            // List의 모든 요소에 대해 재귀 호출
+                            obj.each { item ->
+                                countTests(item)
+                            }
+                        }
+                    }
+                    
+                    // JSON 전체를 순회하며 테스트 카운트
+                    countTests(resultsJson)
+                    
+                    // 결과가 0이면 대체 방법 시도
+                    if (totalTests == 0) {
+                        echo "No tests found with recursive method, trying alternative parsing..."
+                        
+                        // 방법 1: suites 배열 직접 접근
+                        if (resultsJson.suites instanceof List) {
+                            resultsJson.suites.each { suite ->
+                                if (suite instanceof Map) {
+                                    if (suite.specs instanceof List) {
+                                        suite.specs.each { spec ->
+                                            if (spec instanceof Map && spec.tests instanceof List) {
+                                                spec.tests.each { test ->
+                                                    totalTests++
+                                                    if (test instanceof Map && test.results instanceof List) {
+                                                        def status = test.results.find { it.status }?.status
+                                                        if (status == 'passed') {
+                                                            passedTests++
+                                                        } else if (status == 'failed') {
+                                                            failedTests++
+                                                        } else {
+                                                            skippedTests++
+                                                        }
+                                                    }
                                                 }
-                                            } else {
-                                                // results가 없으면 skipped로 처리
-                                                skippedTests++
                                             }
                                         }
                                     }
                                 }
                             }
                         }
-                    } else {
-                        // 대체 방법: stats 객체가 있는 경우
-                        if (resultsJson.stats) {
+                        
+                        // 방법 2: stats 객체 사용
+                        if (totalTests == 0 && resultsJson.stats instanceof Map) {
                             totalTests = resultsJson.stats.total ?: 0
                             passedTests = resultsJson.stats.passed ?: 0
                             failedTests = resultsJson.stats.failed ?: 0
                             skippedTests = resultsJson.stats.skipped ?: 0
-                        } else {
-                            echo "Warning: Could not parse test results. JSON structure may be different."
-                            echo "Available keys: ${resultsJson.keySet()}"
-                            totalTests = 0
                         }
                     }
                     
@@ -105,6 +143,11 @@ pipeline {
                     env.TEST_SKIPPED = "${skippedTests}"
                     
                     echo "Test Summary: Total=${totalTests}, Passed=${passedTests}, Failed=${failedTests}, Skipped=${skippedTests}"
+                    
+                    if (totalTests == 0) {
+                        echo "WARNING: Could not parse test results. JSON structure may be different."
+                        echo "First 500 characters of JSON: ${groovy.json.JsonOutput.toJson(resultsJson).take(500)}"
+                    }
                 }
             }
         }
