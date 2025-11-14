@@ -9,42 +9,35 @@ pipeline {
             }
         }
         
+        stage('Setup Node.js') {
+            steps {
+                script {
+                    def nodejs = tool name: 'NodeJS', type: 'hudson.plugins.nodejs.tools.NodeJSInstallation'
+                    env.PATH = "${nodejs};${env.PATH}"
+                    bat 'node --version'
+                    bat 'npm --version'
+                }
+            }
+        }
+        
         stage('Install Dependencies') {
             steps {
                 echo 'Installing npm dependencies...'
-                script {
-                    if (isUnix()) {
-                        sh 'npm install'
-                    } else {
-                        bat 'npm install'
-                    }
-                }
+                bat 'npm install'
             }
         }
         
         stage('Install Playwright Browsers') {
             steps {
                 echo 'Installing Playwright browsers...'
-                script {
-                    if (isUnix()) {
-                        sh 'npx playwright install --with-deps chromium'
-                    } else {
-                        bat 'npx playwright install --with-deps chromium'
-                    }
-                }
+                bat 'npx playwright install --with-deps chromium'
             }
         }
         
         stage('Run Sanity Tests') {
             steps {
                 echo 'Running Sanity tests...'
-                script {
-                    if (isUnix()) {
-                        sh 'npm run test:sanity'
-                    } else {
-                        bat 'npm run test:sanity'
-                    }
-                }
+                bat 'npm run test:sanity'
             }
             post {
                 always {
