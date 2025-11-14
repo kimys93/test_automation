@@ -12,7 +12,7 @@ pipeline {
         stage('Setup Node.js') {
             steps {
                 script {
-                    def nodejs = tool name: 'NodeJS', type: 'hudson.plugins.nodejs.tools.NodeJSInstallation'
+                    def nodejs = tool name: 'NodeJS', type: 'jenkins.plugins.nodejs.tools.NodeJSInstallation'
                     env.PATH = "${nodejs};${env.PATH}"
                     bat 'node --version'
                     bat 'npm --version'
