@@ -186,8 +186,6 @@ pipeline {
                     script {
                         def testJobUrl = "${env.JENKINS_URL}job/test_automation/"
                         def buildUrl = env.BUILD_URL ?: 'N/A'
-                        def status = env.TEST_FAILED.toInteger() > 0 ? '❌ FAILED' : '✅ PASSED'
-                        def color = env.TEST_FAILED.toInteger() > 0 ? 'danger' : 'good'
                         
                         // 디버깅: 환경 변수 확인
                         echo "=== Step 4: Environment variables ==="
@@ -196,85 +194,70 @@ pipeline {
                         echo "TEST_FAILED: ${env.TEST_FAILED}"
                         echo "TEST_SKIPPED: ${env.TEST_SKIPPED}"
                         
-                        // Slack 메시지 구성 (한글과 이모지 포함)
-                        def message = """
-🚀 *테스트 자동화 결과* ${status}
-
-📊 *테스트 요약*
-• Total: ${env.TEST_TOTAL}
-• ✅ Passed: ${env.TEST_PASSED}
-• ❌ Failed: ${env.TEST_FAILED}
-• ⏭️ Skipped: ${env.TEST_SKIPPED}
-
-🔗 *링크*
-• 테스트 리포트: ${testJobUrl}
-• 빌드: ${buildUrl}
-"""
-                        
-                        // 디버깅: 메시지 문자열 확인
-                        echo "=== Step 5: Message string check ==="
-                        echo "Message length: ${message.length()}"
-                        echo "Message contains 한글: ${message.contains('테스트')}"
-                        def messageBytes = message.getBytes('UTF-8')
-                        echo "Message UTF-8 bytes length: ${messageBytes.length}"
-                        
-                        // Slack 전송 (HTTP POST)
-                        def payload = [
-                            text: message,
-                            username: 'Jenkins Test Bot',
-                            icon_emoji: ':robot_face:',
-                            attachments: [[
-                                color: color,
-                                fields: [
-                                    [title: '전체', value: env.TEST_TOTAL, short: true],
-                                    [title: '통과', value: env.TEST_PASSED, short: true],
-                                    [title: '실패', value: env.TEST_FAILED, short: true],
-                                    [title: '건너뜀', value: env.TEST_SKIPPED, short: true]
-                                ]
-                            ]]
-                        ]
-                        
-                        // 디버깅: Payload 확인
-                        echo "=== Step 6: Payload check ==="
-                        echo "Payload title: ${payload.attachments[0].fields[0].title}"
-                        echo "Payload title bytes: ${payload.attachments[0].fields[0].title.getBytes('UTF-8')}"
-                        
-                        // UTF-8 인코딩으로 JSON 생성
-                        def jsonPayload = groovy.json.JsonOutput.toJson(payload)
-                        
-                        // 디버깅: JSON 확인
-                        echo "=== Step 7: JSON payload check ==="
-                        echo "JSON length: ${jsonPayload.length()}"
-                        echo "JSON contains 한글: ${jsonPayload.contains('테스트')}"
-                        
-                        // HTTP Request (UTF-8 인코딩 명시)
-                        // Windows에서 한글 인코딩 문제 해결을 위해 PowerShell 스크립트 파일 사용
-                        def jsonFile = 'slack_payload.json'
+                        // PowerShell에서 JSON을 직접 생성하여 한글 인코딩 문제 해결
                         def psScript = 'send_slack.ps1'
                         
-                        // 디버깅: 파일 쓰기 전 확인
-                        echo "=== Step 8: Writing JSON file ==="
-                        echo "JSON payload to write length: ${jsonPayload.length()}"
-                        
-                        // UTF-8로 파일 저장 (writeFile이 UTF-8로 저장함)
-                        writeFile file: jsonFile, text: jsonPayload, encoding: 'UTF-8'
-                        
-                        // 디버깅: 파일 쓰기 후 확인
-                        def writtenFile = readFile file: jsonFile, encoding: 'UTF-8'
-                        echo "Written file length: ${writtenFile.length()}"
-                        
-                        // PowerShell 스크립트 파일 생성
+                        // PowerShell 스크립트 파일 생성 (한글과 이모지를 PowerShell에서 직접 생성)
                         def psScriptContent = """
-                            Write-Host "=== Step 9: PowerShell script execution ==="
-                            \$json = Get-Content -Path '${jsonFile}' -Encoding UTF8 -Raw
-                            Write-Host "JSON read length: \$(\$json.Length)"
-                            \$bytes = [System.Text.Encoding]::UTF8.GetBytes(\$json)
-                            Write-Host "UTF-8 bytes length: \$(\$bytes.Length)"
+                            \$testTotal = '${env.TEST_TOTAL}'
+                            \$testPassed = '${env.TEST_PASSED}'
+                            \$testFailed = '${env.TEST_FAILED}'
+                            \$testSkipped = '${env.TEST_SKIPPED}'
+                            \$testJobUrl = '${testJobUrl}'
+                            \$buildUrl = '${buildUrl}'
+                            \$status = if ([int]\$testFailed -gt 0) { '❌ FAILED' } else { '✅ PASSED' }
+                            \$color = if ([int]\$testFailed -gt 0) { 'danger' } else { 'good' }
+                            \$webhookUrl = '${env.SLACK_WEBHOOK_URL}'
+                            
+                            # Slack 메시지 구성 (한글과 이모지 포함)
+                            \$message = @"
+🚀 *테스트 자동화 결과* `$status
+
+📊 *테스트 요약*
+• 전체: `$testTotal
+• ✅ Passed: `$testPassed
+• ❌ Failed: `$testFailed
+• ⏭️ Skipped: `$testSkipped
+
+🔗 *링크*
+• 테스트 리포트: `$testJobUrl
+• 빌드: `$buildUrl
+"@
+                            
+                            # Slack payload 생성
+                            \$payload = @{
+                                text = \$message
+                                username = 'Jenkins Test Bot'
+                                icon_emoji = ':robot_face:'
+                                attachments = @(
+                                    @{
+                                        color = \$color
+                                        fields = @(
+                                            @{ title = '전체'; value = \$testTotal; short = `$true }
+                                            @{ title = '통과'; value = \$testPassed; short = `$true }
+                                            @{ title = '실패'; value = \$testFailed; short = `$true }
+                                            @{ title = '건너뜀'; value = \$testSkipped; short = `$true }
+                                        )
+                                    }
+                                )
+                            } | ConvertTo-Json -Depth 10
+                            
+                            # UTF-8 인코딩으로 바이트 변환
+                            \$bytes = [System.Text.Encoding]::UTF8.GetBytes(\$payload)
+                            
+                            # Slack에 전송
                             Write-Host "Sending to Slack..."
-                            Invoke-WebRequest -Uri '${env.SLACK_WEBHOOK_URL}' -Method POST -ContentType 'application/json; charset=utf-8' -Body \$bytes -UseBasicParsing | Out-Null
+                            Invoke-WebRequest -Uri \$webhookUrl -Method POST -ContentType 'application/json; charset=utf-8' -Body \$bytes -UseBasicParsing | Out-Null
                             Write-Host "Slack notification sent successfully"
                         """
+                        // PowerShell 스크립트 파일을 UTF-8로 저장 (writeFile 사용)
                         writeFile file: psScript, text: psScriptContent, encoding: 'UTF-8'
+                        
+                        // PowerShell에서 UTF-8 BOM 추가 (한글 인코딩 문제 해결)
+                        bat """
+                            @echo off
+                            powershell -Command "\$content = Get-Content -Path '%CD%\\${psScript}' -Raw -Encoding UTF8; \$utf8WithBom = New-Object System.Text.UTF8Encoding `$true; [System.IO.File]::WriteAllText('%CD%\\${psScript}', \$content, \$utf8WithBom)"
+                        """
                         
                         // PowerShell 스크립트 실행
                         echo "=== Step 10: Executing PowerShell script ==="
@@ -285,7 +268,7 @@ pipeline {
                         """
                         
                         // 임시 파일 삭제
-                        bat "del /f ${jsonFile} ${psScript}"
+                        bat "del /f ${psScript}"
                         
                         echo 'Slack notification sent successfully'
                     }
