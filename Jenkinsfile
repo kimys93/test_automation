@@ -1,6 +1,10 @@
 pipeline {
     agent any
     
+    environment {
+        JAVA_TOOL_OPTIONS = '-Dfile.encoding=UTF-8'
+    }
+    
     stages {
         stage('Checkout') {
             steps {
@@ -12,7 +16,7 @@ pipeline {
         stage('Setup Node.js') {
             steps {
                 script {
-                    def nodejs = tool name: 'NodeJS', type: 'jenkins.plugins.nodejs.tools.NodeJSInstallation'
+                    def nodejs = tool 'NodeJS'
                     env.PATH = "${nodejs};${env.PATH}"
                     bat 'node --version'
                     bat 'npm --version'
@@ -22,15 +26,39 @@ pipeline {
         
         stage('Install Dependencies') {
             steps {
-                echo 'Installing npm dependencies...'
-                bat 'npm install'
+                script {
+                    if (fileExists('node_modules')) {
+                        echo 'node_modules already exists, skipping npm install'
+                    } else {
+                        echo 'Installing npm dependencies...'
+                        bat 'npm install'
+                    }
+                }
             }
         }
         
         stage('Install Playwright Browsers') {
             steps {
-                echo 'Installing Playwright browsers...'
-                bat 'npx playwright install --with-deps chromium'
+                script {
+                    // chromium 브라우저가 설치되어 있는지 확인
+                    def chromiumInstalled = false
+                    try {
+                        def result = bat(
+                            script: '@echo off && dir /b "%LOCALAPPDATA%\\ms-playwright" 2>nul | findstr /i "chromium" >nul && echo exists || echo not_exists',
+                            returnStdout: true
+                        ).trim()
+                        chromiumInstalled = result.contains('exists')
+                    } catch (Exception e) {
+                        // 확인 실패 시 설치 진행
+                    }
+                    
+                    if (chromiumInstalled || fileExists('node_modules\\.cache\\playwright')) {
+                        echo 'Playwright browsers already installed, skipping installation'
+                    } else {
+                        echo 'Installing Playwright browsers...'
+                        bat 'npx playwright install'
+                    }
+                }
             }
         }
         
