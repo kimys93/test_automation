@@ -1,18 +1,22 @@
 pipeline {
-    agent none
+    agent any
+    
+    tools {
+        nodejs 'Node20'
+    }
     
     environment {
         PATH = "/usr/bin:/bin:/usr/sbin:/sbin:${env.PATH}"
     }
     
     stages {
+        stage('Checkout') {
+            steps {
+                git url: 'https://github.com/kimys93/test_automation.git', branch: 'main'
+            }
+        }
+        
         stage('Install Dependencies') {
-            agent {
-                label ''
-            }
-            tools {
-                nodejs 'Node20'
-            }
             steps {
                 sh 'npm install'
                 sh 'npx playwright install'
@@ -20,12 +24,6 @@ pipeline {
         }
         
         stage('Run Sanity Tests') {
-            agent {
-                label ''
-            }
-            tools {
-                nodejs 'Node20'
-            }
             steps {
                 script {
                     try {
@@ -39,9 +37,6 @@ pipeline {
         }
         
         stage('Process Test Results') {
-            agent {
-                label ''
-            }
             steps {
                 script {
                     if (fileExists('playwright-report') && fileExists('test-results')) {
@@ -74,16 +69,13 @@ pipeline {
                         def totalTests = 0
                         def passedTests = 0
                         def failedTests = 0
-                        def skippedTests = 0
                         
                         if (resultsJson.containsKey('stats') && resultsJson.stats instanceof Map) {
                             def stats = resultsJson.stats
                             def expected = stats.containsKey('expected') ? stats.expected : 0
                             def unexpected = stats.containsKey('unexpected') ? stats.unexpected : 0
-                            skippedTests = stats.containsKey('skipped') ? stats.skipped : 0
-                            def flaky = stats.containsKey('flaky') ? stats.flaky : 0
                             
-                            totalTests = expected + unexpected + skippedTests + flaky
+                            totalTests = expected + unexpected
                             passedTests = expected
                             failedTests = unexpected
                         }
