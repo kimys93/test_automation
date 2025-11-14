@@ -1,11 +1,5 @@
 pipeline {
-    agent {
-        label ''
-    }
-    
-    tools {
-        nodejs 'Node20'
-    }
+    agent none
     
     environment {
         PATH = "/usr/bin:/bin:/usr/sbin:/sbin:${env.PATH}"
@@ -13,6 +7,12 @@ pipeline {
     
     stages {
         stage('Install Dependencies') {
+            agent {
+                label ''
+            }
+            tools {
+                nodejs 'Node20'
+            }
             steps {
                 sh 'npm install'
                 sh 'npx playwright install'
@@ -20,6 +20,12 @@ pipeline {
         }
         
         stage('Run Sanity Tests') {
+            agent {
+                label ''
+            }
+            tools {
+                nodejs 'Node20'
+            }
             steps {
                 script {
                     try {
@@ -33,6 +39,9 @@ pipeline {
         }
         
         stage('Process Test Results') {
+            agent {
+                label ''
+            }
             steps {
                 script {
                     if (fileExists('playwright-report') && fileExists('test-results')) {
