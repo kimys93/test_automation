@@ -54,9 +54,8 @@ pipeline {
                     def failedTests = 0
                     def skippedTests = 0
                     
-                    // @NonCPS 어노테이션으로 Sandbox 제한 완전 우회 (클로저 없이 순수 반복문 사용)
-                    @NonCPS
-                    def countTestsMethod(obj, counters) {
+                    // Sandbox가 비활성화되어 있으므로 클로저 사용 가능
+                    def countTests = { obj, counters ->
                         if (obj instanceof Map) {
                             // test 객체인지 확인 (results 배열이 있으면 test)
                             if (obj.containsKey('results') && obj.results instanceof List) {
@@ -64,9 +63,7 @@ pipeline {
                                 def hasPassed = false
                                 def hasFailed = false
                                 
-                                // 클로저 대신 for 루프 사용
-                                for (int i = 0; i < obj.results.size(); i++) {
-                                    def result = obj.results[i]
+                                obj.results.each { result ->
                                     if (result instanceof Map && result.status) {
                                         if (result.status == 'passed') {
                                             hasPassed = true
@@ -84,17 +81,15 @@ pipeline {
                                     counters.skipped++
                                 }
                             } else {
-                                // Map의 모든 값에 대해 재귀 호출 (클로저 없이)
-                                def keys = obj.keySet().toArray()
-                                for (int i = 0; i < keys.length; i++) {
-                                    def key = keys[i]
-                                    countTestsMethod(obj[key], counters)
+                                // Map의 모든 값에 대해 재귀 호출
+                                obj.each { key, value ->
+                                    countTests(value, counters)
                                 }
                             }
                         } else if (obj instanceof List) {
-                            // List의 모든 요소에 대해 재귀 호출 (클로저 없이)
-                            for (int i = 0; i < obj.size(); i++) {
-                                countTestsMethod(obj[i], counters)
+                            // List의 모든 요소에 대해 재귀 호출
+                            obj.each { item ->
+                                countTests(item, counters)
                             }
                         }
                     }
@@ -108,7 +103,7 @@ pipeline {
                     ]
                     
                     // JSON 전체를 순회하며 테스트 카운트
-                    countTestsMethod(resultsJson, counters)
+                    countTests(resultsJson, counters)
                     
                     totalTests = counters.total
                     passedTests = counters.passed
