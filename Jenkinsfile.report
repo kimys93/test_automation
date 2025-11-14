@@ -233,10 +233,10 @@ pipeline {
                                     @{
                                         color = \$color
                                         fields = @(
-                                            @{ title = '전체'; value = \$testTotal; short = `$true }
-                                            @{ title = '통과'; value = \$testPassed; short = `$true }
-                                            @{ title = '실패'; value = \$testFailed; short = `$true }
-                                            @{ title = '건너뜀'; value = \$testSkipped; short = `$true }
+                                            @{ title = '전체'; value = \$testTotal; short = \$true }
+                                            @{ title = '통과'; value = \$testPassed; short = \$true }
+                                            @{ title = '실패'; value = \$testFailed; short = \$true }
+                                            @{ title = '건너뜀'; value = \$testSkipped; short = \$true }
                                         )
                                     }
                                 )
