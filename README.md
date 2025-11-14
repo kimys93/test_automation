@@ -110,10 +110,17 @@ test-automation/
 2. **`.env` 파일 편집**
    ```env
    BASE_URL=http://192.168.219.103:3000
+   JENKINS_URL=http://192.168.219.103:8080
    ```
-   실제 테스트 서버의 IP 주소와 포트를 입력하세요.
+   실제 테스트 서버와 Jenkins 서버의 IP 주소와 포트를 입력하세요.
 
-3. **주의사항**
+3. **Jenkins 환경 변수 설정 (Jenkinsfile에서 사용)**
+   - Jenkins 관리 → 시스템 설정 (Manage Jenkins → Configure System)
+   - Global properties → Environment variables 체크
+   - Add → Name: `JENKINS_URL`, Value: `http://192.168.219.103:8080`
+   - 저장
+
+4. **주의사항**
    - `.env` 파일은 Git에 커밋되지 않습니다 (`.gitignore`에 포함됨)
    - 각 환경(로컬, CI/CD 등)에 맞게 별도로 설정하세요
    - `.env.example` 파일은 템플릿으로만 사용됩니다

@@ -7,6 +7,9 @@ pipeline {
     
     environment {
         PATH = "/usr/bin:/bin:/usr/sbin:/sbin:${env.PATH}"
+        // Jenkins URL 환경 변수 (Jenkins 시스템 설정에서 전역 환경 변수로 설정 필요)
+        // Jenkins 관리 → 시스템 설정 → Global properties → Environment variables
+        // Name: JENKINS_URL, Value: http://192.168.219.103:8080
     }
     
     stages {
@@ -81,7 +84,16 @@ pipeline {
                         }
                         
                         def testStatus = failedTests > 0 ? 'Fail' : 'Success'
-                        def artifactUrl = "${env.JOB_URL}lastBuild/artifact/playwright-report/index.html"
+                        // 외부 접속을 위해 환경 변수에서 Jenkins URL 가져오기
+                        // Jenkins 시스템 설정에서 JENKINS_URL 환경 변수 설정 필요
+                        def jenkinsBaseUrl = env.JENKINS_URL
+                        if (!jenkinsBaseUrl) {
+                            echo "경고: JENKINS_URL 환경 변수가 설정되지 않았습니다. Jenkins 시스템 설정에서 설정하세요."
+                            // JOB_URL에서 기본 URL 추출 (fallback)
+                            jenkinsBaseUrl = env.JOB_URL ? env.JOB_URL.replaceAll('/job/.*', '') : null
+                        }
+                        def jobName = env.JOB_NAME ?: 'test_automation'
+                        def artifactUrl = "${jenkinsBaseUrl}/job/${jobName}/lastBuild/artifact/playwright-report/index.html"
                         def message = """Test Status:
 Total Tests: ${totalTests}, Passed: ${passedTests}, Failed: ${failedTests} - (<${artifactUrl}|Open>)
 ${testStatus == 'Success' ? '\n:white_check_mark: Success - 모든 테스트 성공' : '\n:red_circle: Fail - 실패한 케이스 확인 필요'}"""
