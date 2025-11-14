@@ -1,11 +1,29 @@
 pipeline {
     agent any
     
+    environment {
+        JAVA_TOOL_OPTIONS = '-Dfile.encoding=UTF-8 -Dconsole.encoding=UTF-8'
+        PYTHONIOENCODING = 'UTF-8'
+        LANG = 'ko_KR.UTF-8'
+        LC_ALL = 'ko_KR.UTF-8'
+    }
+    
     stages {
         stage('Checkout') {
             steps {
                 echo 'Checking out source code...'
                 checkout scm
+            }
+        }
+        
+        stage('Setup Node.js') {
+            steps {
+                script {
+                    def nodejs = tool 'NodeJS'
+                    env.PATH = "${nodejs};${env.PATH}"
+                    bat 'node --version'
+                    bat 'npm --version'
+                }
             }
         }
         

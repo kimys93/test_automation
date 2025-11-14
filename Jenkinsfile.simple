@@ -10,19 +10,37 @@ pipeline {
         
         stage('Install Dependencies') {
             steps {
-                sh 'npm install'
+                script {
+                    if (isUnix()) {
+                        sh 'npm install'
+                    } else {
+                        bat 'npm install'
+                    }
+                }
             }
         }
         
         stage('Install Playwright') {
             steps {
-                sh 'npx playwright install --with-deps chromium'
+                script {
+                    if (isUnix()) {
+                        sh 'npx playwright install --with-deps chromium'
+                    } else {
+                        bat 'npx playwright install --with-deps chromium'
+                    }
+                }
             }
         }
         
         stage('Run Sanity Tests') {
             steps {
-                sh 'npm run test:sanity'
+                script {
+                    if (isUnix()) {
+                        sh 'npm run test:sanity'
+                    } else {
+                        bat 'npm run test:sanity'
+                    }
+                }
             }
         }
     }
