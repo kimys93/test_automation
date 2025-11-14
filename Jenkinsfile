@@ -165,7 +165,7 @@ pipeline {
 • 빌드: ${buildUrl}"""
                         
                         slackSend(
-                            channel: '#test-automation',
+                            channel: '#ngle-전체',
                             color: color,
                             message: message,
                             tokenCredentialId: 'slack-token'
