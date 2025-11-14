@@ -12,7 +12,7 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                git url: 'https://github.com/kimys93/test_automation.git', branch: 'main'
+                checkout scm
             }
         }
         
