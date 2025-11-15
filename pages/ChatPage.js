@@ -63,6 +63,11 @@ class ChatPage extends BasePage {
   async leaveChatRoom() {
     await this.leaveButton.click();
   }
+
+  // 특정 텍스트의 메시지 찾기
+  getMessageByText(text) {
+    return this.page.locator(`text=${text}`);
+  }
 }
 
 export default ChatPage;

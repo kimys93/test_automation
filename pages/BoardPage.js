@@ -26,6 +26,8 @@ class BoardPage extends BasePage {
     this.postCount = this.page.locator('#postCount');
     // 페이지네이션 (이전/다음 페이지 버튼)
     this.pagination = this.page.locator('#pagination');
+    // 검색 결과 목록
+    this.searchResults = this.page.locator('table tbody tr, .post-item, .board-item');
   }
 
   // 메서드
@@ -55,6 +57,21 @@ class BoardPage extends BasePage {
     } else {
       await expect(this.searchType).toBeVisible();
     }
+  }
+
+  // 특정 제목의 게시글 찾기
+  getPostByTitle(title) {
+    return this.page.locator(`text=${title}`);
+  }
+
+  // 검색 결과 개수 가져오기
+  async getSearchResultsCount() {
+    return await this.searchResults.count();
+  }
+
+  // 첫 번째 검색 결과 가져오기
+  getFirstSearchResult() {
+    return this.searchResults.first();
   }
 }
 

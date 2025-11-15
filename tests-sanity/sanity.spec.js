@@ -30,7 +30,7 @@ test.describe('Sanity Test - 핵심 기능 검증', () => {
     });
     
     await test.step('페이지 본문 내용 로드 확인', async () => {
-      const bodyContent = await page.locator('body').textContent();
+      const bodyContent = await basePage.getBodyContent();
       expect(bodyContent).toBeTruthy();
       if (bodyContent) {
         expect(bodyContent.trim().length).toBeGreaterThan(0);
@@ -38,7 +38,7 @@ test.describe('Sanity Test - 핵심 기능 검증', () => {
     });
     
     await test.step('기본 네비게이션 요소 확인', async () => {
-      const hasNavigation = await page.locator('nav, header, .navbar, a[href*="login"], a[href*="board"]').count();
+      const hasNavigation = await basePage.getNavigationCount();
       expect(hasNavigation).toBeGreaterThan(0);
     });
   });
@@ -129,7 +129,7 @@ test.describe('Sanity Test - 핵심 기능 검증', () => {
     
     await test.step('작성한 글이 목록에 노출되는지 확인', async () => {
       await test.step('게시글 제목으로 검색', async () => {
-        const postTitleLocator = page.locator(`text=${testTitle}`);
+        const postTitleLocator = boardPage.getPostByTitle(testTitle);
         await expect(postTitleLocator).toBeVisible({ timeout: 5000 });
       });
       await test.step('게시판 목록에 제목 포함 여부 확인', async () => {
@@ -183,12 +183,11 @@ test.describe('Sanity Test - 핵심 기능 검증', () => {
     
     await test.step('검색 결과 필터링 확인', async () => {
       await test.step('검색 결과 개수 확인', async () => {
-        const searchResults = page.locator('table tbody tr, .post-item, .board-item');
-        const resultCount = await searchResults.count();
+        const resultCount = await boardPage.getSearchResultsCount();
         
         if (resultCount > 0) {
           await test.step('첫 번째 검색 결과 내용 확인', async () => {
-            const firstResult = searchResults.first();
+            const firstResult = boardPage.getFirstSearchResult();
             const firstResultText = await firstResult.textContent();
             expect(firstResultText).toBeTruthy();
           });
@@ -255,7 +254,7 @@ test.describe('Sanity Test - 핵심 기능 검증', () => {
       });
       
       await test.step('전송한 메시지가 목록에 나타나는지 확인', async () => {
-        const messageLocator = page.locator(`text=${testMessage}`);
+        const messageLocator = chatPage.getMessageByText(testMessage);
         await expect(messageLocator).toBeVisible({ timeout: 3000 });
       });
     } else {
