@@ -11,9 +11,9 @@ import NotificationPage from '../pages/NotificationPage.js';
  * Sanity Test - 핵심 기능만 빠르게 검증
  * 배포 전 가장 중요한 기능들이 정상 작동하는지 확인
  */
-test.describe.serial('Sanity Test - 핵심 기능 검증', () => {
+test('Sanity Test - 핵심 기능 검증', async ({ page }) => {
   
-  test('홈페이지 접속 및 기본 로드 확인', async ({ page }) => {
+  await test.step('홈페이지 접속 및 기본 로드 확인', async () => {
     const basePage = new BasePage(page);
     
     await test.step('홈페이지로 이동', async () => {
@@ -43,7 +43,7 @@ test.describe.serial('Sanity Test - 핵심 기능 검증', () => {
     });
   });
 
-  test('로그인 기능 - 실제 로그인 성공 확인', async ({ page }) => {
+  await test.step('로그인 기능 - 실제 로그인 성공 확인', async () => {
     const loginPage = new LoginPage(page);
     
     await test.step('로그인 페이지로 이동', async () => {
@@ -59,12 +59,12 @@ test.describe.serial('Sanity Test - 핵심 기능 검증', () => {
       });
       await test.step('로그인 버튼 클릭', async () => {
         await loginPage.submitButton.click();
-        await loginPage.wait(2000);
+        await loginPage.wait(1000);
       });
       
     });
     
-    await test.step('로그인 성공 확인인', async () => {
+    await test.step('로그인 성공 확인', async () => {
       await expect(page).toHaveURL(/.*board|.*\/$/);
     });
     
@@ -74,7 +74,7 @@ test.describe.serial('Sanity Test - 핵심 기능 검증', () => {
     });
   });
 
-  test('글쓰기 및 게시판 목록 노출 확인', async ({ page }) => {
+  await test.step('글쓰기 및 게시판 목록 노출 확인', async () => {
     const loginPage = new LoginPage(page);
     const boardPage = new BoardPage(page);
     const writePage = new WritePage(page);
@@ -90,7 +90,7 @@ test.describe.serial('Sanity Test - 핵심 기능 검증', () => {
       await test.step('로그인 버튼 클릭', async () => {
         await loginPage.submitButton.click();
       });
-      await loginPage.wait(2000);
+      await loginPage.wait(1000);
     });
     
     await test.step('게시판으로 이동', async () => {
@@ -119,7 +119,7 @@ test.describe.serial('Sanity Test - 핵심 기능 검증', () => {
       await test.step('작성 완료 버튼 클릭', async () => {
         await writePage.submitButton.click();
       });
-      await writePage.wait(2000); // 게시글 작성 완료 대기
+      await writePage.wait(1000); // 게시글 작성 완료 대기
     });
     
     await test.step('게시판으로 돌아가기', async () => {
@@ -138,7 +138,7 @@ test.describe.serial('Sanity Test - 핵심 기능 검증', () => {
     });
   });
 
-  test('검색 기능 - 실제 검색 결과 확인', async ({ page }) => {
+  await test.step('검색 기능 - 실제 검색 결과 확인', async () => {
     const loginPage = new LoginPage(page);
     const boardPage = new BoardPage(page);
     
@@ -153,7 +153,7 @@ test.describe.serial('Sanity Test - 핵심 기능 검증', () => {
       await test.step('로그인 버튼 클릭', async () => {
         await loginPage.submitButton.click();
       });
-      await loginPage.wait(2000);
+      await loginPage.wait(1000);
     });
     
     await test.step('게시판으로 이동', async () => {
@@ -196,14 +196,14 @@ test.describe.serial('Sanity Test - 핵심 기능 검증', () => {
     });
   });
 
-  test('채팅 기능 - 메시지 전송 및 확인', async ({ page }) => {
+  await test.step('채팅 기능 - 메시지 전송 및 확인', async () => {
     const loginPage = new LoginPage(page);
     const chatPage = new ChatPage(page);
     
     await test.step('로그인 수행', async () => {
       await loginPage.navigate();
       await loginPage.login('test1', 'test1234');
-      await chatPage.wait(2000);
+      await chatPage.wait(1000);
     });
     
     await test.step('채팅 페이지로 이동', async () => {
@@ -266,20 +266,20 @@ test.describe.serial('Sanity Test - 핵심 기능 검증', () => {
     }
   });
 
-  test('알림 기능 - 알림 목록 확인', async ({ page }) => {
+  await test.step('알림 기능 - 알림 목록 확인', async () => {
     const loginPage = new LoginPage(page);
     const notificationPage = new NotificationPage(page);
     
     await test.step('로그인 수행', async () => {
       await loginPage.navigate();
       await loginPage.login('test1', 'test1234');
-      await notificationPage.wait(2000);
+      await notificationPage.wait(1000);
     });
     
     if (await notificationPage.notificationIcon.isVisible()) {
       await test.step('알림 아이콘 클릭하여 드롭다운 열기', async () => {
         await notificationPage.openNotificationDropdown();
-        await notificationPage.wait(500);
+        await notificationPage.wait(1000);
       });
       
       if (await notificationPage.notificationDropdown.isVisible()) {
