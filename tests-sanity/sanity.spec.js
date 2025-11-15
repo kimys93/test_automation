@@ -11,7 +11,7 @@ import NotificationPage from '../pages/NotificationPage.js';
  * Sanity Test - 핵심 기능만 빠르게 검증
  * 배포 전 가장 중요한 기능들이 정상 작동하는지 확인
  */
-test.describe('Sanity Test - 핵심 기능 검증', () => {
+test.describe.serial('Sanity Test - 핵심 기능 검증', () => {
   
   test('홈페이지 접속 및 기본 로드 확인', async ({ page }) => {
     const basePage = new BasePage(page);
