@@ -73,8 +73,8 @@
 • ⏭️ Skipped: 0
 
 🔗 Links
-• Test Report: http://192.168.219.103:8080/job/test_automation/
-• Build: http://192.168.219.103:8080/job/test_automation_slack/1/
+• Test Report: http://192.168.219.105:8080/job/test_automation/
+• Build: http://192.168.219.105:8080/job/test_automation_slack/1/
 ```
 
 ## 문제 해결
