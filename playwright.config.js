@@ -21,7 +21,7 @@ export default defineConfig({
   /* 테스트를 병렬로 실행 */
   fullyParallel: true,
   /* CI에서 실패한 테스트를 재시도 */
-  retries: process.env.CI ? 2 : 0,
+  retries: process.env.CI ? 1 : 0,
   /* 병렬 실행할 워커 수 */
   workers: process.env.CI ? 1 : undefined,
   /* 리포트 설정 */
