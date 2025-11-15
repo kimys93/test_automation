@@ -1,0 +1,17 @@
+{
+  // Git 자동 동기화 설정
+  "git.autofetch": true,
+  "git.autofetchPeriod": 180,
+  "git.confirmSync": false,
+  "git.enableSmartCommit": true,
+  "git.postCommitCommand": "none",
+  
+  // 파일 변경 감지 시 자동 저장
+  "files.autoSave": "afterDelay",
+  "files.autoSaveDelay": 1000,
+  
+  // Git 변경사항 표시
+  "git.decorations.enabled": true,
+  "scm.diffDecorations": "all"
+}
+
