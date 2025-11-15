@@ -35,6 +35,18 @@ class BasePage {
   async getNavigationCount() {
     return await this.navigation.count();
   }
+
+  // 로그아웃 수행
+  async logout() {
+    const logoutButton = this.page.locator('button:has-text("로그아웃"), a:has-text("로그아웃"), #logoutBtn, .logout-button');
+    if (await logoutButton.count() > 0) {
+      await logoutButton.first().click();
+      await this.wait(1000); // 로그아웃 처리 대기
+    } else {
+      // 로그아웃 버튼이 없으면 쿠키/세션 삭제를 위해 로그인 페이지로 이동
+      await this.goto('/login');
+    }
+  }
 }
 
 export default BasePage;

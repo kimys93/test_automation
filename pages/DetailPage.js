@@ -28,6 +28,12 @@ class DetailPage extends BasePage {
     await this.goto(`/posts/${postId}`);
   }
 
+  // 댓글 작성 (comment: 댓글 내용)
+  async writeComment(comment) {
+    await this.commentInput.fill(comment);
+    await this.commentSubmitButton.click();
+    await this.wait(1000); // 댓글 작성 완료 대기
+  }
 }
 
 export default DetailPage;

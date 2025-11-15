@@ -28,6 +28,10 @@ class ChatPage extends BasePage {
     this.leaveButton = this.page.locator('#leaveButton, button:has-text("나가기")');
     // 상대방 이름 표시
     this.recipientName = this.page.locator('.recipient-name, .chat-partner-name');
+    // 사용자 검색 입력 필드 (새 채팅 시작 시)
+    this.userSearchInput = this.page.locator('#userSearch, input[placeholder*="사용자"], input[placeholder*="검색"]');
+    // 검색된 사용자 목록
+    this.userSearchResults = this.page.locator('.user-item, .user-result, .search-result-item');
   }
 
   // 메서드
@@ -67,6 +71,18 @@ class ChatPage extends BasePage {
   // 특정 텍스트의 메시지 찾기
   getMessageByText(text) {
     return this.page.locator(`text=${text}`);
+  }
+
+  // 사용자 검색 및 선택 (username: 검색할 사용자명)
+  async searchAndSelectUser(username) {
+    // 사용자 검색 입력 필드에 검색어 입력
+    await this.userSearchInput.fill(username);
+    await this.wait(1000); // 검색 결과 대기
+    
+    // 검색 결과에서 해당 사용자 찾기 및 클릭
+    const userResult = this.page.locator(`.user-item:has-text("${username}"), .user-result:has-text("${username}"), .search-result-item:has-text("${username}")`).first();
+    await userResult.click();
+    await this.wait(500);
   }
 }
 
