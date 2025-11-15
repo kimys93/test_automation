@@ -9,7 +9,7 @@ pipeline {
         PATH = "/usr/bin:/bin:/usr/sbin:/sbin:${env.PATH}"
         // Jenkins URL 환경 변수 (Jenkins 시스템 설정에서 전역 환경 변수로 설정 필요)
         // Jenkins 관리 → 시스템 설정 → Global properties → Environment variables
-        // Name: JENKINS_URL, Value: http://192.168.219.105:8080
+        // Name: JENKINS_URL, Value: http://IP 주소:포트
     }
     
     stages {
