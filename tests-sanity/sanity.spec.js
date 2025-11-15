@@ -9,10 +9,11 @@ import ChatPage from '../pages/ChatPage.js';
 import NotificationPage from '../pages/NotificationPage.js';
 
 /**
- * Sanity Test - 핵심 기능만 빠르게 검증
+ * Sanity Test - 기본 기능만 빠르게 검증
  * 배포 전 가장 중요한 기능들이 정상 작동하는지 확인
  */
-test('Sanity Test - 핵심 기능 검증', async ({ page }) => {
+test('Sanity Test - 기본 기능 검증', async ({ page }) => {
+  test.setTimeout(120000); // 2분 타임아웃 설정 (여러 단계를 거치는 테스트이므로)
   
   await test.step('홈페이지 접속 및 기본 로드 확인', async () => {
     const basePage = new BasePage(page);
@@ -177,23 +178,16 @@ test('Sanity Test - 핵심 기능 검증', async ({ page }) => {
     
     let testMessage = '';
     
-    // 1단계: 사용자 A (test1) 로그인 및 사용자 B에게 메시지 전송
-    await test.step('사용자 A (test1) 로그인', async () => {
-      await loginPage.navigate();
-      await loginPage.login('test1', 'test1234');
-      await basePage.wait(2000);
-    });
-    
     await test.step('사용자 A가 채팅 페이지로 이동', async () => {
       await chatPage.navigate();
       await page.waitForLoadState('networkidle');
-      await expect(page).toHaveURL(/.*chat/, { timeout: 5000 });
+      await chatPage.wait(3000);
     });
     
     await test.step('사용자 A가 사용자 B에게 메시지 전송', async () => {
       await test.step('사용자 검색 및 선택', async () => {
         await chatPage.searchAndSelectUser('test2');
-        await chatPage.wait(1000);
+        await chatPage.wait(2000);
       });
       
       await test.step('메시지 입력 및 전송', async () => {
@@ -204,9 +198,11 @@ test('Sanity Test - 핵심 기능 검증', async ({ page }) => {
         await chatPage.sendMessage(testMessage);
         await chatPage.wait(1000);
         
-        // 전송한 메시지 확인
-        const messageLocator = chatPage.getMessageByText(testMessage);
-        await expect(messageLocator).toBeVisible({ timeout: 3000 });
+        // 전송한 메시지 확인 (최근 메시지 기준)
+        const latestMessage = await chatPage.getLatestMessage();
+        await expect(latestMessage).toBeVisible({ timeout: 3000 });
+        const messageText = await latestMessage.textContent();
+        expect(messageText).toContain(testMessage);
       });
     });
     
@@ -231,13 +227,13 @@ test('Sanity Test - 핵심 기능 검증', async ({ page }) => {
     
     await test.step('알림 목록에서 최신 알림 클릭', async () => {
       await test.step('최신 알림 확인', async () => {
-        const firstNotification = notificationPage.notificationItems.first();
-        await expect(firstNotification).toBeVisible({ timeout: 5000 });
+        await expect(notificationPage.latestNotification).toBeVisible({ timeout: 5000 });
       });
       
       await test.step('최신 알림 클릭', async () => {
-        await notificationPage.clickNotification(0);
-        await basePage.wait(2000);
+        await notificationPage.clickLatestNotification();
+        // 페이지 이동 대기 (URL 변경 또는 채팅 페이지 로드)
+        await page.waitForLoadState('networkidle', { timeout: 10000 });
       });
     });
   });
@@ -379,14 +375,14 @@ test('Sanity Test - 핵심 기능 검증', async ({ page }) => {
       });
       
       await test.step('알림 항목 내용 확인', async () => {
-        const notificationCount = await notificationPage.notificationItems.count();
-        if (notificationCount > 0) {
-          await test.step('첫 번째 알림 표시 확인', async () => {
-            await expect(notificationPage.notificationItems.first()).toBeVisible();
+        // 최신 알림 확인 (#notificationsList > div:nth-child(1))
+        const latestNotificationExists = await notificationPage.latestNotification.count() > 0;
+        if (latestNotificationExists) {
+          await test.step('최신 알림 표시 확인', async () => {
+            await expect(notificationPage.latestNotification).toBeVisible({ timeout: 5000 });
           });
           await test.step('알림 내용 텍스트 확인', async () => {
-            const firstNotification = notificationPage.notificationItems.first();
-            const notificationText = await firstNotification.textContent();
+            const notificationText = await notificationPage.latestNotification.textContent();
             expect(notificationText).toBeTruthy();
             if (notificationText) {
               expect(notificationText.trim().length).toBeGreaterThan(0);

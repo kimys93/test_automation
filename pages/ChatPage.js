@@ -13,11 +13,13 @@ class ChatPage extends BasePage {
     // 채팅방 목록
     this.chatRooms = this.page.locator('.chat-room, .chat-item');
     // 메시지 입력 필드
-    this.messageInput = this.page.locator('#messageInput, textarea[placeholder*="메시지"], input[placeholder*="메시지"]');
+    this.messageInput = this.page.locator('#messageInput');
     // 메시지 전송 버튼
-    this.sendButton = this.page.locator('#sendButton, button:has-text("전송"), button[type="submit"]');
+    this.sendButton = this.page.locator('#sendBtn');
     // 메시지 목록 컨테이너
     this.messagesContainer = this.page.locator('#messagesContainer, .messages, .chat-messages');
+    // 채팅 메시지 컨테이너
+    this.chatMessages = this.page.locator('#chatMessages');
     // 개별 메시지 요소
     this.messageItems = this.page.locator('.message, .chat-message, .msg-item');
     // 채팅방 검색 입력 필드
@@ -28,8 +30,8 @@ class ChatPage extends BasePage {
     this.leaveButton = this.page.locator('#leaveButton, button:has-text("나가기")');
     // 상대방 이름 표시
     this.recipientName = this.page.locator('.recipient-name, .chat-partner-name');
-    // 사용자 검색 입력 필드 (새 채팅 시작 시)
-    this.userSearchInput = this.page.locator('#userSearch, input[placeholder*="사용자"], input[placeholder*="검색"]');
+    // 사용자 검색 입력 필드
+    this.userSearchInput = this.page.locator('#userSearch');
     // 검색된 사용자 목록
     this.userSearchResults = this.page.locator('.user-item, .user-result, .search-result-item');
   }
@@ -73,6 +75,26 @@ class ChatPage extends BasePage {
     return this.page.locator(`text=${text}`);
   }
 
+  // 최근 메시지 가져오기 (가장 높은 nth-child 인덱스)
+  async getLatestMessage() {
+    const messageCount = await this.chatMessages.locator('> div').count();
+    if (messageCount > 0) {
+      // 가장 높은 인덱스의 메시지 (최근 메시지)
+      return this.chatMessages.locator(`> div:nth-child(${messageCount})`);
+    }
+    return null;
+  }
+
+  // 최근 메시지에 특정 텍스트가 포함되어 있는지 확인
+  async verifyLatestMessageContains(text) {
+    const latestMessage = await this.getLatestMessage();
+    if (latestMessage) {
+      const messageText = await latestMessage.textContent();
+      return messageText && messageText.includes(text);
+    }
+    return false;
+  }
+
   // 사용자 검색 및 선택 (username: 검색할 사용자명)
   async searchAndSelectUser(username) {
     // 사용자 검색 입력 필드에 검색어 입력
@@ -82,7 +104,10 @@ class ChatPage extends BasePage {
     // 검색 결과에서 해당 사용자 찾기 및 클릭
     const userResult = this.page.locator(`.user-item:has-text("${username}"), .user-result:has-text("${username}"), .search-result-item:has-text("${username}")`).first();
     await userResult.click();
-    await this.wait(500);
+    await this.wait(2000); // 채팅방 열림 대기
+    
+    // 메시지 입력 필드가 보일 때까지 대기 (채팅방이 열렸는지 확인)
+    await this.messageInput.waitFor({ state: 'visible', timeout: 5000 });
   }
 }
 

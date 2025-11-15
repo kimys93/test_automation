@@ -10,6 +10,10 @@ class NotificationPage extends BasePage {
     this.pageTitle = this.page.locator('h2, h3, .notification-title');
     // 알림 목록 컨테이너
     this.notificationList = this.page.locator('#notificationList, .notification-list, .notifications');
+    // 알림 목록 (notificationsList)
+    this.notificationsList = this.page.locator('#notificationsList');
+    // 최신 알림 (항상 첫 번째)
+    this.latestNotification = this.page.locator('#notificationsList > div:nth-child(1)');
     // 개별 알림 항목
     this.notificationItems = this.page.locator('.notification-item, .notification, .notif-item');
     // 읽지 않은 알림 개수 배지
@@ -44,6 +48,11 @@ class NotificationPage extends BasePage {
     if (notifications[index]) {
       await notifications[index].click();
     }
+  }
+
+  // 최신 알림 클릭 (항상 첫 번째)
+  async clickLatestNotification() {
+    await this.latestNotification.click();
   }
 
   // 전체 읽음 처리

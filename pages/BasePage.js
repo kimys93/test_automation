@@ -38,7 +38,22 @@ class BasePage {
 
   // 로그아웃 수행
   async logout() {
-    const logoutButton = this.page.locator('button:has-text("로그아웃"), a:has-text("로그아웃"), #logoutBtn, .logout-button');
+    // 드롭다운 메뉴 열기 (사용자 프로필 메뉴 등)
+    const dropdownToggle = this.page.locator('.dropdown-toggle, .user-menu, [data-bs-toggle="dropdown"], button[aria-expanded="false"]').first();
+    const logoutButton = this.page.locator('button:has-text("로그아웃"), a:has-text("로그아웃"), #logoutBtn, .logout-button, .dropdown-item:has-text("로그아웃")');
+    
+    // 드롭다운이 열려있는지 확인
+    const isDropdownOpen = await this.page.locator('.dropdown-menu.show, .dropdown-menu[style*="display: block"]').count() > 0;
+    
+    if (!isDropdownOpen) {
+      // 드롭다운이 닫혀있으면 열기
+      if (await dropdownToggle.count() > 0) {
+        await dropdownToggle.click();
+        await this.wait(500); // 드롭다운 열림 대기
+      }
+    }
+    
+    // 로그아웃 버튼 클릭
     if (await logoutButton.count() > 0) {
       await logoutButton.first().click();
       await this.wait(1000); // 로그아웃 처리 대기
