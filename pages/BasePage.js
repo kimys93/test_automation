@@ -10,7 +10,7 @@ dotenv.config();
 class BasePage {
   constructor(page) {
     this.page = page;
-    this.baseURL = process.env.BASE_URL || 'http://localhost:3000';
+    this.baseURL = process.env.BASE_URL;
     // 기본 요소들
     this.body = this.page.locator('body');
     this.navigation = this.page.locator('nav, header, .navbar, a[href*="login"], a[href*="board"]');
