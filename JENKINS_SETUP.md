@@ -66,7 +66,7 @@ netstat -an | grep 8080 | grep LISTEN
 2. **Global properties** → **Environment variables** 체크
 3. **Add** 클릭
 4. **Name**: `JENKINS_URL`
-5. **Value**: `http://192.168.219.105:8080` (실제 Jenkins 서버 IP 주소)
+5. **Value**: `http://IP 주소` (실제 Jenkins 서버 IP 주소)
 6. **저장**
 
 또는 config.xml 파일에서 직접 수정:
@@ -79,7 +79,7 @@ vi ~/.jenkins/config.xml
 
 ```xml
 <string>JENKINS_URL</string>
-<string>http://192.168.219.105:8080</string>
+<string>http://IP 주소</string>
 ```
 
 ## 확인 방법
