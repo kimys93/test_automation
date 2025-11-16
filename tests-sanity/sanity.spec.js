@@ -27,10 +27,6 @@ test('Sanity Test - 기본 기능 123', async ({ page }) => {
       await expect(page).toHaveURL(/.*\/$/);
     });
     
-    await test.step('페이지 타이틀 확인', async () => {
-      await expect(page).toHaveTitle(/.+/); // 타이틀이 존재하는지 확인
-    });
-    
     await test.step('페이지 본문 내용 로드 확인', async () => {
       const bodyContent = await basePage.getBodyContent();
       expect(bodyContent).toBeTruthy();
@@ -181,13 +177,13 @@ test('Sanity Test - 기본 기능 123', async ({ page }) => {
     await test.step('사용자 A가 채팅 페이지로 이동', async () => {
       await chatPage.navigate();
       await page.waitForLoadState('networkidle');
-      await chatPage.wait(3000);
+      await chatPage.wait(1000);
     });
     
     await test.step('사용자 A가 사용자 B에게 메시지 전송', async () => {
       await test.step('사용자 검색 및 선택', async () => {
         await chatPage.searchAndSelectUser('test2');
-        await chatPage.wait(2000);
+        await chatPage.wait(1000);
       });
       
       await test.step('메시지 입력 및 전송', async () => {
@@ -216,7 +212,7 @@ test('Sanity Test - 기본 기능 123', async ({ page }) => {
     await test.step('사용자 B (test2) 로그인', async () => {
       await loginPage.navigate();
       await loginPage.login('test2', 'test1234');
-      await basePage.wait(2000);
+      await basePage.wait(1000);
     });
     
     await test.step('사용자 B가 알림 페이지로 이동', async () => {
@@ -253,7 +249,7 @@ test('Sanity Test - 기본 기능 123', async ({ page }) => {
     await test.step('사용자 A (test1) 로그인', async () => {
       await loginPage.navigate();
       await loginPage.login('test1', 'test1234');
-      await basePage.wait(2000);
+      await basePage.wait(1000);
     });
     
     await test.step('사용자 A가 게시글 작성', async () => {

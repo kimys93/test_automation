@@ -73,14 +73,36 @@ pipeline {
                         def passedTests = 0
                         def failedTests = 0
                         
-                        if (resultsJson.containsKey('stats') && resultsJson.stats instanceof Map) {
-                            def stats = resultsJson.stats
-                            def expected = stats.containsKey('expected') ? stats.expected : 0
-                            def unexpected = stats.containsKey('unexpected') ? stats.unexpected : 0
-                            
-                            totalTests = expected + unexpected
-                            passedTests = expected
-                            failedTests = unexpected
+                        
+                        if (resultsJson.containsKey('suites') && resultsJson.suites instanceof List) {
+                            resultsJson.suites.each { suite ->
+                                if (suite.containsKey('specs') && suite.specs instanceof List) {
+                                    suite.specs.each { spec ->
+                                        if (spec.containsKey('tests') && spec.tests instanceof List) {
+                                            spec.tests.each { test ->
+                                                if (test.containsKey('results') && test.results instanceof List) {
+                                                    test.results.each { result ->
+                                                        // 중분류: result.steps[] 배열의 최상위 레벨 step들만 카운트
+                                                        if (result.containsKey('steps') && result.steps instanceof List) {
+                                                            result.steps.each { step ->
+                                                                // 중분류만 카운트 (소분류는 step.steps가 있지만 카운트하지 않음)
+                                                                totalTests++
+                                                                // 상위 테스트의 status를 기준으로 판단
+                                                                // result.status가 "passed"이면 모든 step이 통과
+                                                                if (result.status == 'passed') {
+                                                                    passedTests++
+                                                                } else {
+                                                                    failedTests++
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                         
                         def testStatus = failedTests > 0 ? 'Fail' : 'Success'

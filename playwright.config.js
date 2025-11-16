@@ -42,13 +42,21 @@ export default defineConfig({
     actionTimeout: 10000,
     /* 네비게이션 타임아웃 */
     navigationTimeout: 30000,
+    /* 브라우저를 전체 화면으로 실행 */
+    viewport: null,
   },
 
   /* 테스트할 프로젝트들 */
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: { 
+        ...devices['Desktop Chrome'],
+        /* 브라우저를 최대화된 상태로 실행 */
+        launchOptions: {
+          args: ['--start-maximized']
+        }
+      },
     },
     // {
     //   name: 'firefox',
