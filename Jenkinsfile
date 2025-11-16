@@ -91,7 +91,7 @@ pipeline {
                                                                 // depth2만 카운트 (depth3는 depth2Step.steps가 있지만 카운트하지 않음)
                                                                 totalTests++
                                                                 
-                                                                // depth2 step 내부에 error가 있는지 확인 (depth3까지 재귀적으로 확인)
+                                                                // depth2 step 내부에 error가 있는지 확인 (depth3까지 확인)
                                                                 def depth2StepHasError = false
                                                                 
                                                                 // depth2 step 자체에 error 필드가 있는지 확인
@@ -99,26 +99,29 @@ pipeline {
                                                                     depth2StepHasError = true
                                                                 }
                                                                 
-                                                                // depth2 step의 하위 step들(depth3)을 재귀적으로 확인하여 error가 있는지 찾기
-                                                                def checkStepForError = { s ->
-                                                                    // step 자체에 error가 있는지 확인
-                                                                    if (s.containsKey('error') && s.error != null) {
-                                                                        return true
-                                                                    }
-                                                                    // 하위 step들을 확인
-                                                                    if (s.containsKey('steps') && s.steps instanceof List) {
-                                                                        for (subStep in s.steps) {
-                                                                            if (checkStepForError(subStep)) {
-                                                                                return true
+                                                                // depth2 step의 하위 step들(depth3)을 반복문으로 확인하여 error가 있는지 찾기
+                                                                // 재귀 호출 대신 반복문 사용 (Jenkins Sandbox 제한)
+                                                                if (!depth2StepHasError && depth2Step.containsKey('steps') && depth2Step.steps instanceof List) {
+                                                                    // depth3 step들 확인
+                                                                    for (depth3Step in depth2Step.steps) {
+                                                                        // depth3 step 자체에 error가 있는지 확인
+                                                                        if (depth3Step.containsKey('error') && depth3Step.error != null) {
+                                                                            depth2StepHasError = true
+                                                                            break
+                                                                        }
+                                                                        // depth3 step의 하위 step들(depth4) 확인
+                                                                        if (depth3Step.containsKey('steps') && depth3Step.steps instanceof List) {
+                                                                            for (depth4Step in depth3Step.steps) {
+                                                                                if (depth4Step.containsKey('error') && depth4Step.error != null) {
+                                                                                    depth2StepHasError = true
+                                                                                    break
+                                                                                }
+                                                                            }
+                                                                            if (depth2StepHasError) {
+                                                                                break
                                                                             }
                                                                         }
                                                                     }
-                                                                    return false
-                                                                }
-                                                                
-                                                                // depth2 step의 하위 step들(depth3)에서 error 확인
-                                                                if (!depth2StepHasError && depth2Step.containsKey('steps') && depth2Step.steps instanceof List) {
-                                                                    depth2StepHasError = checkStepForError(depth2Step)
                                                                 }
                                                                 
                                                                 // result.errors 배열에서 해당 depth2 step과 관련된 에러가 있는지 확인
