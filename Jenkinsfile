@@ -74,6 +74,7 @@ pipeline {
                         def failedTests = 0
                         def skippedTests = 0
                         def nonPassedStepList = []  // Pass가 아닌 모든 상태의 step 리스트
+                        def processedStepTitles = [:]  // 이미 처리한 depth2 step title을 추적 (중복 방지)
                         
                         if (resultsJson.containsKey('suites') && resultsJson.suites instanceof List) {
                             resultsJson.suites.each { suite ->
@@ -82,14 +83,24 @@ pipeline {
                                         if (spec.containsKey('tests') && spec.tests instanceof List) {
                                             spec.tests.each { test ->
                                                 if (test.containsKey('results') && test.results instanceof List) {
-                                                    test.results.each { result ->
-                                                        def resultStatus = result.status ?: 'unknown'
+                                                    // result가 여러 개일 수 있으므로, 마지막 result만 사용 (최종 결과)
+                                                    def finalResult = test.results[test.results.size() - 1]
+                                                    if (finalResult != null) {
+                                                        def resultStatus = finalResult.status ?: 'unknown'
                                                         
                                                         // depth2(중분류): result.steps[] 배열의 최상위 레벨 step들만 카운트
-                                                        if (result.containsKey('steps') && result.steps instanceof List) {
-                                                            result.steps.each { depth2Step ->
+                                                        if (finalResult.containsKey('steps') && finalResult.steps instanceof List) {
+                                                            finalResult.steps.each { depth2Step ->
+                                                                def stepTitle = depth2Step.containsKey('title') ? depth2Step.title : ''
+                                                                
+                                                                // 이미 처리한 step이면 건너뛰기 (중복 방지)
+                                                                if (stepTitle && processedStepTitles.containsKey(stepTitle)) {
+                                                                    return
+                                                                }
+                                                                
                                                                 // depth2만 카운트 (depth3는 depth2Step.steps가 있지만 카운트하지 않음)
                                                                 totalTests++
+                                                                processedStepTitles[stepTitle] = true
                                                                 
                                                                 // depth2 step 내부에 error가 있는지 확인 (depth3까지 확인)
                                                                 def depth2StepHasError = false
@@ -125,7 +136,7 @@ pipeline {
                                                                 }
                                                                 
                                                                 // result.errors 배열에서 해당 depth2 step과 관련된 에러가 있는지 확인
-                                                                if (!depth2StepHasError && result.containsKey('errors') && result.errors instanceof List && result.errors.size() > 0) {
+                                                                if (!depth2StepHasError && finalResult.containsKey('errors') && finalResult.errors instanceof List && finalResult.errors.size() > 0) {
                                                                     // result.errors에 에러가 있으면, 해당 depth2 step이 실패한 것으로 간주
                                                                     // (정확한 매칭은 어렵지만, result.status가 failed이고 errors가 있으면 depth2 step 중 하나는 실패)
                                                                     // 여기서는 depth2StepHasError가 false인 경우는 passed로 처리
@@ -138,12 +149,12 @@ pipeline {
                                                                     // depth2 step에 실제로 error가 있는 경우만 실패로 처리
                                                                     if (depth2StepHasError) {
                                                                         failedTests++
-                                                                        if (depth2Step.containsKey('title')) {
+                                                                        if (stepTitle) {
                                                                             def statusLabel = resultStatus == 'failed' ? 'Failed' :
                                                                                              resultStatus == 'timedout' ? 'Timedout' :
                                                                                              resultStatus == 'interrupted' ? 'Interrupted' :
                                                                                              resultStatus.capitalize()
-                                                                            nonPassedStepList.add("• ${depth2Step.title} [${statusLabel}]")
+                                                                            nonPassedStepList.add("• ${stepTitle} [${statusLabel}]")
                                                                         }
                                                                     } else {
                                                                         // depth2 step에 error가 없으면 passed로 처리
@@ -151,15 +162,15 @@ pipeline {
                                                                     }
                                                                 } else if (resultStatus == 'skipped') {
                                                                     skippedTests++
-                                                                    if (depth2Step.containsKey('title')) {
-                                                                        nonPassedStepList.add("• ${depth2Step.title} [Skipped]")
+                                                                    if (stepTitle) {
+                                                                        nonPassedStepList.add("• ${stepTitle} [Skipped]")
                                                                     }
                                                                 } else {
                                                                     // 기타 상태
                                                                     if (depth2StepHasError) {
                                                                         failedTests++
-                                                                        if (depth2Step.containsKey('title')) {
-                                                                            nonPassedStepList.add("• ${depth2Step.title} [${resultStatus.capitalize()}]")
+                                                                        if (stepTitle) {
+                                                                            nonPassedStepList.add("• ${stepTitle} [${resultStatus.capitalize()}]")
                                                                         }
                                                                     } else {
                                                                         passedTests++
