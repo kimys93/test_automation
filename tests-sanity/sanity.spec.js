@@ -151,22 +151,20 @@ test('Sanity Test - 기본 기능', async ({ page }) => {
       await expect(page).toHaveURL(new RegExp(`.*search.*${searchKeyword}|.*board.*`));
     });
     
+    // 의도적으로 Fail 발생 (테스트용)
     await test.step('검색 결과 필터링 확인', async () => {
       await test.step('검색 결과 개수 확인', async () => {
         const resultCount = await boardPage.getSearchResultsCount();
         
-        if (resultCount > 0) {
-          await test.step('첫 번째 검색 결과 내용 확인', async () => {
-            const firstResult = boardPage.getFirstSearchResult();
-            const firstResultText = await firstResult.textContent();
-            expect(firstResultText).toBeTruthy();
-          });
-        }
+        // 의도적으로 실패하도록 잘못된 expect 작성
+        expect(resultCount).toBe(-1); // 항상 실패하도록
       });
     });
   });
 
+  // 의도적으로 Skipped 발생 (테스트용)
   await test.step('채팅 및 알림 기능 - 사용자 간 메시지 전송 및 알림 확인', async () => {
+    test.skip(); // 이 step을 스킵
     const loginPage = new LoginPage(page);
     const chatPage = new ChatPage(page);
     const notificationPage = new NotificationPage(page);
@@ -364,7 +362,7 @@ test('Sanity Test - 기본 기능', async ({ page }) => {
       await test.step('알림 목록 표시 확인', async () => {
         const notificationListExists = await notificationPage.notificationList.count() > 0;
         if (notificationListExists) {
-          await expect(notificationPage.notificationLists).toBeVisible({ timeout: 5000 });
+          await expect(notificationPage.notificationList).toBeVisible({ timeout: 5000 });
         } else {
           console.log('Notification list container not found, but page loaded successfully');
         }
@@ -382,7 +380,7 @@ test('Sanity Test - 기본 기능', async ({ page }) => {
             expect(notificationText).toBeTruthy();
             if (notificationText) {
               expect(notificationText.trim().length).toBeGreaterThan(0);
-              console.log(`알림 내용: ${notificationTextttt}`);
+              console.log(`알림 내용: ${notificationText}`);
             }
           });
         } else {
