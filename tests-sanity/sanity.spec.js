@@ -12,7 +12,7 @@ import NotificationPage from '../pages/NotificationPage.js';
  * Sanity Test - 기본 기능만 빠르게 검증
  * 배포 전 가장 중요한 기능들이 정상 작동하는지 확인
  */
-test('Sanity Test - 기본 기능 123', async ({ page }) => {
+test('Sanity Test - 기본 기능', async ({ page }) => {
   test.setTimeout(120000); // 2분 타임아웃 설정 (여러 단계를 거치는 테스트이므로)
   
   await test.step('홈페이지 접속 및 기본 로드 확인', async () => {
@@ -382,7 +382,7 @@ test('Sanity Test - 기본 기능 123', async ({ page }) => {
             expect(notificationText).toBeTruthy();
             if (notificationText) {
               expect(notificationText.trim().length).toBeGreaterThan(0);
-              console.log(`알림 내용: ${notificationText}`);
+              console.log(`알림 내용: ${notificationTextttt}`);
             }
           });
         } else {

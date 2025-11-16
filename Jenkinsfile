@@ -72,7 +72,8 @@ pipeline {
                         def totalTests = 0
                         def passedTests = 0
                         def failedTests = 0
-                        
+                        def skippedTests = 0
+                        def nonPassedStepList = []  // Pass가 아닌 모든 상태의 step 리스트
                         
                         if (resultsJson.containsKey('suites') && resultsJson.suites instanceof List) {
                             resultsJson.suites.each { suite ->
@@ -87,12 +88,32 @@ pipeline {
                                                             result.steps.each { step ->
                                                                 // 중분류만 카운트 (소분류는 step.steps가 있지만 카운트하지 않음)
                                                                 totalTests++
+                                                                
                                                                 // 상위 테스트의 status를 기준으로 판단
-                                                                // result.status가 "passed"이면 모든 step이 통과
-                                                                if (result.status == 'passed') {
+                                                                def status = result.status ?: 'unknown'
+                                                                
+                                                                if (status == 'passed') {
                                                                     passedTests++
                                                                 } else {
-                                                                    failedTests++
+                                                                    // Pass가 아닌 모든 상태 처리
+                                                                    if (status == 'failed' || status == 'timedout' || status == 'interrupted') {
+                                                                        failedTests++
+                                                                    } else if (status == 'skipped') {
+                                                                        skippedTests++
+                                                                    } else {
+                                                                        // 기타 알 수 없는 상태도 실패로 처리
+                                                                        failedTests++
+                                                                    }
+                                                                    
+                                                                    // Pass가 아닌 중분류 step의 title과 상태 수집
+                                                                    if (step.containsKey('title')) {
+                                                                        def statusLabel = status == 'skipped' ? 'Skipped' : 
+                                                                                         status == 'failed' ? 'Failed' :
+                                                                                         status == 'timedout' ? 'Timedout' :
+                                                                                         status == 'interrupted' ? 'Interrupted' :
+                                                                                         status.capitalize()
+                                                                        nonPassedStepList.add("• ${step.title} [${statusLabel}]")
+                                                                    }
                                                                 }
                                                             }
                                                         }
@@ -105,7 +126,7 @@ pipeline {
                             }
                         }
                         
-                        def testStatus = failedTests > 0 ? 'Fail' : 'Success'
+                        def testStatus = failedTests > 0 || skippedTests > 0 ? 'Fail' : 'Success'
                         // 외부 접속을 위해 환경 변수에서 Jenkins URL 가져오기
                         // Jenkins 시스템 설정에서 JENKINS_URL 환경 변수 설정 필요
                         def jenkinsBaseUrl = env.JENKINS_URL
@@ -116,9 +137,16 @@ pipeline {
                         }
                         def jobName = env.JOB_NAME ?: 'test_automation'
                         def artifactUrl = "${jenkinsBaseUrl}/job/${jobName}/lastBuild/artifact/playwright-report/index.html"
+                        
+                        // Pass가 아닌 모든 결과 리스트 메시지 구성
+                        def failureListMessage = ""
+                        if (nonPassedStepList.size() > 0) {
+                            failureListMessage += "\n\n:warning: *Non-Passed Tests:*\n${nonPassedStepList.join('\n')}"
+                        }
+                        
                         def message = """Test Status:
-Total Tests: ${totalTests}, Passed: ${passedTests}, Failed: ${failedTests} - (<${artifactUrl}|Open>)
-${testStatus == 'Success' ? '\n:white_check_mark: Success - 모든 테스트 성공' : '\n:red_circle: Fail - 실패한 케이스 확인 필요'}"""
+Total Tests: ${totalTests}, Passed: ${passedTests}, Failed: ${failedTests}, Skipped: ${skippedTests} - (<${artifactUrl}|Open>)
+${testStatus == 'Success' ? '\n:white_check_mark: Success - 모든 테스트 성공' : '\n:red_circle: Fail - 실패한 케이스 확인 필요'}${failureListMessage}"""
                         
                         slackSend(
                             channel: 'C07KHG2TS48',
