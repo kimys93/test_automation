@@ -364,7 +364,7 @@ test('Sanity Test - 기본 기능', async ({ page }) => {
       await test.step('알림 목록 표시 확인', async () => {
         const notificationListExists = await notificationPage.notificationList.count() > 0;
         if (notificationListExists) {
-          await expect(notificationPage.notificationList).toBeVisible({ timeout: 5000 });
+          await expect(notificationPage.notificationLists).toBeVisible({ timeout: 5000 });
         } else {
           console.log('Notification list container not found, but page loaded successfully');
         }
