@@ -83,7 +83,31 @@ async function uploadToReportPortal() {
       mode: 'DEFAULT'
     });
 
-    const launchId = launchInfo.id;
+    // launchInfo 디버깅
+    console.log('Launch Info type:', typeof launchInfo);
+    console.log('Launch Info:', JSON.stringify(launchInfo, null, 2));
+    
+    // launchInfo가 문자열(UUID)이거나 객체일 수 있음
+    let launchId = null;
+    if (typeof launchInfo === 'string') {
+      launchId = launchInfo;
+    } else if (launchInfo && typeof launchInfo === 'object') {
+      launchId = launchInfo.id || launchInfo.uuid || launchInfo.tempId;
+    }
+    
+    // launchId가 없으면 클라이언트 내부에서 가져오기 시도
+    if (!launchId) {
+      // @ts-ignore - 클라이언트 내부 속성 접근
+      launchId = client.launchId || client.launchTempId || client.getLaunchTempId?.();
+    }
+    
+    if (!launchId) {
+      console.error('❌ Launch ID를 가져올 수 없습니다.');
+      console.error('Launch Info type:', typeof launchInfo);
+      console.error('Launch Info:', launchInfo);
+      throw new Error('Launch ID를 가져올 수 없습니다. startLaunch() 반환값을 확인하세요.');
+    }
+    
     console.log(`✅ Launch 생성 완료: ${launchId}`);
 
     // 테스트 결과 파싱 및 업로드
