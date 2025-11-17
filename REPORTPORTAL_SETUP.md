@@ -74,7 +74,7 @@ docker-compose -f docker-compose.reportportal.yml down -v
 ```env
 # ReportPortal 설정
 REPORTPORTAL_ENABLED=true
-REPORTPORTAL_ENDPOINT=http://localhost:8082
+REPORTPORTAL_ENDPOINT=http://localhost:8082/api/v1
 REPORTPORTAL_TOKEN=reportportal에서 생성한 API 토큰
 REPORTPORTAL_PROJECT=test-automation
 REPORTPORTAL_LAUNCH=Playwright Tests

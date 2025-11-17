@@ -11,14 +11,13 @@ pipeline {
         // Jenkins 관리 → 시스템 설정 → Global properties → Environment variables
         // Name: JENKINS_URL, Value: http://IP 주소:포트
         
-        ReportPortal 설정 (선택사항 - 사용하려면 활성화)
-        REPORTPORTAL_ENABLED = 'true'
-        REPORTPORTAL_ENDPOINT = 'http://your-reportportal-server:8080/api/v1'
-        REPORTPORTAL_PROJECT = 'test-automation'
-        REPORTPORTAL_LAUNCH = "Jenkins Build #${env.BUILD_NUMBER} - ${env.BUILD_ID}"
-        REPORTPORTAL_DESCRIPTION = "Jenkins에서 실행된 Playwright 테스트 결과"
-        REPORTPORTAL_TOKEN = credentials('reportportal-token')  // Jenkins Credentials에서 관리
-        TEST_TYPE = 'sanity'  // 또는 'regression', 'functional'
+        REPORTPORTAL_ENABLED = "${env.REPORTPORTAL_ENABLED}"
+        REPORTPORTAL_ENDPOINT = "${env.REPORTPORTAL_ENDPOINT}"
+        REPORTPORTAL_PROJECT = "${env.REPORTPORTAL_PROJECT}"
+        REPORTPORTAL_LAUNCH = "${env.REPORTPORTAL_LAUNCH}"
+        REPORTPORTAL_DESCRIPTION = "${env.REPORTPORTAL_DESCRIPTION}"
+        REPORTPORTAL_TOKEN = "${env.REPORTPORTAL_TOKEN}"
+        TEST_TYPE = "${env.TEST_TYPE}"
     }
     
     stages {
@@ -30,14 +29,38 @@ pipeline {
         
         stage('Install Dependencies') {
             steps {
-                sh 'npm install'
-                sh 'npx playwright install'
+                script {
+                    // node_modules가 없으면 npm install 실행
+                    if (!fileExists('node_modules')) {
+                        echo 'node_modules not found, running npm install...'
+                        sh 'npm install'
+                    } else {
+                        echo 'node_modules already exists, skipping npm install'
+                    }
+                    
+                    // playwright가 설치되어 있지 않으면 설치
+                    def playwrightExists = sh(
+                        script: 'test -d node_modules/@playwright/test && exit 0 || exit 1',
+                        returnStatus: true
+                    )
+                    if (playwrightExists != 0) {
+                        echo 'Playwright not found, running npx playwright install...'
+                        sh 'npx playwright install'
+                    } else {
+                        echo 'Playwright already installed, skipping installation'
+                    }
+                }
             }
         }
         
         stage('Run Sanity Tests') {
             steps {
                 script {
+                    // ReportPortal 환경 변수 확인
+                    echo "REPORTPORTAL_ENABLED: ${env.REPORTPORTAL_ENABLED}"
+                    echo "REPORTPORTAL_ENDPOINT: ${env.REPORTPORTAL_ENDPOINT}"
+                    echo "REPORTPORTAL_TOKEN: ${env.REPORTPORTAL_TOKEN ? env.REPORTPORTAL_TOKEN.substring(0, 20) + '...' : 'NOT SET'}"
+                    
                     try {
                         sh 'npm run test:sanity'
                     } catch (Exception e) {

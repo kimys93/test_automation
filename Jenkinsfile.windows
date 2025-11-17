@@ -30,14 +30,38 @@ pipeline {
         
         stage('Install Dependencies') {
             steps {
-                bat 'npm install'
-                bat 'npx playwright install'
+                script {
+                    // node_modules가 없으면 npm install 실행
+                    if (!fileExists('node_modules')) {
+                        echo 'node_modules not found, running npm install...'
+                        bat 'npm install'
+                    } else {
+                        echo 'node_modules already exists, skipping npm install'
+                    }
+                    
+                    // playwright가 설치되어 있지 않으면 설치
+                    def playwrightExists = bat(
+                        script: 'if exist "node_modules\\@playwright\\test" (exit 0) else (exit 1)',
+                        returnStatus: true
+                    )
+                    if (playwrightExists != 0) {
+                        echo 'Playwright not found, running npx playwright install...'
+                        bat 'npx playwright install'
+                    } else {
+                        echo 'Playwright already installed, skipping installation'
+                    }
+                }
             }
         }
         
         stage('Run Sanity Tests') {
             steps {
                 script {
+                    // ReportPortal 환경 변수 확인
+                    echo "REPORTPORTAL_ENABLED: ${env.REPORTPORTAL_ENABLED}"
+                    echo "REPORTPORTAL_ENDPOINT: ${env.REPORTPORTAL_ENDPOINT}"
+                    echo "REPORTPORTAL_TOKEN: ${env.REPORTPORTAL_TOKEN ? env.REPORTPORTAL_TOKEN.substring(0, 20) + '...' : 'NOT SET'}"
+                    
                     try {
                         bat 'npm run test:sanity'
                     } catch (Exception e) {
