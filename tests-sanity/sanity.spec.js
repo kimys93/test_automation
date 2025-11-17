@@ -172,7 +172,7 @@ test('Sanity Test - 핵심 기능 검증', async ({ page }) => {
     
     await test.step('채팅 페이지로 이동', async () => {
       await chatPage.navigate();
-      await chatPage.wait(1000);
+      await chatPage.wait(2000);
     });
     
     await test.step('채팅방 목록 확인', async () => {

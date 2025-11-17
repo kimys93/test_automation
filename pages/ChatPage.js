@@ -9,7 +9,7 @@ class ChatPage extends BasePage {
     // 채팅 페이지 제목
     this.pageTitle = this.page.locator('h2, h3, .chat-title');
     // 채팅 목록 컨테이너
-    this.chatList = this.page.locator('#chatList, .chat-list');
+    this.chatList = this.page.locator('#chatRoomsList');
     // 채팅방 목록
     this.chatRooms = this.page.locator('.chat-room, .chat-item');
     // 메시지 입력 필드
