@@ -83,18 +83,45 @@ pipeline {
                 script {
                     if (fileExists('playwright-report') && fileExists('test-results')) {
                         // Windows에서는 chmod가 필요 없음
-                        publishHTML([
-                            allowMissing: false,
-                            alwaysLinkToLastBuild: false,
-                            keepAll: true,
-                            reportDir: 'playwright-report',
-                            reportFiles: 'index.html',
-                            reportName: 'Playwright Report'
-                        ])
+                        try {
+                            publishHTML([
+                                allowMissing: false,
+                                alwaysLinkToLastBuild: false,
+                                keepAll: true,
+                                reportDir: 'playwright-report',
+                                reportFiles: 'index.html',
+                                reportName: 'Playwright Report'
+                            ])
+                        } catch (Exception e) {
+                            echo "HTML Publisher 플러그인이 없거나 오류 발생: ${e.message}"
+                        }
+                        
                         archiveArtifacts(
                             artifacts: 'playwright-report/**/*,test-results/**/*',
                             fingerprint: true
                         )
+                    }
+                }
+            }
+        }
+        
+        stage('Upload to ReportPortal') {
+            when {
+                expression { 
+                    return env.REPORTPORTAL_ENABLED == 'true' && fileExists('test-results/results.json')
+                }
+            }
+            steps {
+                script {
+                    echo '📤 ReportPortal에 테스트 결과 업로드 중...'
+                    try {
+                        // result.json을 파싱하여 ReportPortal에 업로드
+                        bat 'npm run upload:reportportal'
+                        echo '✅ ReportPortal 업로드 완료'
+                    } catch (Exception e) {
+                        echo "❌ ReportPortal 업로드 중 오류 발생: ${e.message}"
+                        // 업로드 실패해도 빌드는 계속 진행
+                        currentBuild.result = currentBuild.result ?: 'UNSTABLE'
                     }
                 }
             }

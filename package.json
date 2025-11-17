@@ -12,7 +12,8 @@
     "test:report": "playwright show-report",
     "test:functional": "playwright test tests",
     "test:sanity": "playwright test tests-sanity",
-    "test:regression": "playwright test tests-regression"
+    "test:regression": "playwright test tests-regression",
+    "upload:reportportal": "node scripts/upload-to-reportportal.js"
   },
   "keywords": [
     "playwright",
