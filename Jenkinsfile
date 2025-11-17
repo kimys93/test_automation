@@ -10,6 +10,15 @@ pipeline {
         // Jenkins URL 환경 변수 (Jenkins 시스템 설정에서 전역 환경 변수로 설정 필요)
         // Jenkins 관리 → 시스템 설정 → Global properties → Environment variables
         // Name: JENKINS_URL, Value: http://IP 주소:포트
+        
+        ReportPortal 설정 (선택사항 - 사용하려면 활성화)
+        REPORTPORTAL_ENABLED = 'true'
+        REPORTPORTAL_ENDPOINT = 'http://your-reportportal-server:8080/api/v1'
+        REPORTPORTAL_PROJECT = 'test-automation'
+        REPORTPORTAL_LAUNCH = "Jenkins Build #${env.BUILD_NUMBER} - ${env.BUILD_ID}"
+        REPORTPORTAL_DESCRIPTION = "Jenkins에서 실행된 Playwright 테스트 결과"
+        REPORTPORTAL_TOKEN = credentials('reportportal-token')  // Jenkins Credentials에서 관리
+        TEST_TYPE = 'sanity'  // 또는 'regression', 'functional'
     }
     
     stages {
