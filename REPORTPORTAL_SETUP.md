@@ -15,7 +15,7 @@ docker-compose -f docker-compose.reportportal.yml up -d
 - **Elasticsearch** (포트 9200): 검색 엔진
 - **MinIO** (포트 9000, 9001): 객체 스토리지
 - **ReportPortal API** (포트 8080): 백엔드 API
-- **ReportPortal UAT** (포트 8081): 웹 UI
+- **ReportPortal UAT** (포트 8082): 웹 UI
 
 ### 서비스 상태 확인
 
@@ -45,7 +45,7 @@ docker-compose -f docker-compose.reportportal.yml down -v
 
 ### 웹 UI 접속
 
-1. 브라우저에서 `http://localhost:8081` 접속
+1. 브라우저에서 `http://localhost:8082` 접속
 2. 초기 로그인 정보:
    - **Username**: `default`
    - **Password**: `1q2w3e` (기본 비밀번호, 첫 로그인 후 변경 권장)
@@ -74,8 +74,8 @@ docker-compose -f docker-compose.reportportal.yml down -v
 ```env
 # ReportPortal 설정
 REPORTPORTAL_ENABLED=true
-REPORTPORTAL_ENDPOINT=http://localhost:8080
-REPORTPORTAL_TOKEN=your_api_token_here
+REPORTPORTAL_ENDPOINT=http://localhost:8082
+REPORTPORTAL_TOKEN=reportportal에서 생성한 API 토큰
 REPORTPORTAL_PROJECT=test-automation
 REPORTPORTAL_LAUNCH=Playwright Tests
 ```
@@ -124,7 +124,7 @@ Jenkins에서도 ReportPortal을 사용하려면:
    - 다음 변수 추가:
      ```
      REPORTPORTAL_ENABLED=true
-     REPORTPORTAL_ENDPOINT=http://your-reportportal-server:8080
+     REPORTPORTAL_ENDPOINT=http://your-reportportal-server:8082
      REPORTPORTAL_TOKEN=your_api_token
      REPORTPORTAL_PROJECT=test-automation
      REPORTPORTAL_LAUNCH=Jenkins Build ${BUILD_NUMBER}
@@ -134,7 +134,7 @@ Jenkins에서도 ReportPortal을 사용하려면:
    ```groovy
    environment {
        REPORTPORTAL_ENABLED = 'true'
-       REPORTPORTAL_ENDPOINT = 'http://your-reportportal-server:8080'
+       REPORTPORTAL_ENDPOINT = 'http://your-reportportal-server:8082'
        REPORTPORTAL_TOKEN = credentials('reportportal-token')
        REPORTPORTAL_PROJECT = 'test-automation'
        REPORTPORTAL_LAUNCH = "Jenkins Build ${env.BUILD_NUMBER}"
@@ -160,11 +160,10 @@ docker-compose -f docker-compose.reportportal.yml logs uat
 
 ```yaml
 ports:
-  - "8080:8080"  # API 포트
-  - "8081:8080"  # UI 포트
+  - "8082:8080"  # API 포트
+  - "8081:8081"  # UI 포트
 ```
 
-### 메모리 부족 문제
 
 Elasticsearch는 최소 512MB의 메모리가 필요합니다. Docker Desktop에서 메모리 할당량을 확인하세요.
 
@@ -180,5 +179,3 @@ docker-compose -f docker-compose.reportportal.yml up migrations
 - [ReportPortal 공식 문서](https://reportportal.io/docs)
 - [ReportPortal GitHub](https://github.com/reportportal/reportportal)
 - [Playwright 리포터 문서](https://playwright.dev/docs/test-reporters)
-
-
