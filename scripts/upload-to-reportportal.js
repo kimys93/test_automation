@@ -202,19 +202,30 @@ async function uploadToReportPortal() {
         }
 
         // 테스트 아이템 시작
-        const testItem = await client.startTestItem({
+        const testItemInfo = await client.startTestItem({
           name: stepTitle || 'Unnamed Step',
           type: 'TEST',
           description: stepTitle || 'Unnamed Step',
           hasStats: true
         }, launchId, parentItemId || undefined);
 
+        // testItemInfo에서 tempId 추출
+        const testItemId = typeof testItemInfo === 'string' 
+          ? testItemInfo 
+          : (testItemInfo?.tempId || testItemInfo?.id || testItemInfo);
+        
+        if (!testItemId) {
+          console.error('❌ Test Item ID를 가져올 수 없습니다.');
+          console.error('Test Item Info:', JSON.stringify(testItemInfo, null, 2));
+          throw new Error('Test Item ID를 가져올 수 없습니다.');
+        }
+
         // 에러 로그 추가
         if (depth2StepHasError) {
           const errorMessage = depth2Step.error?.message || 
                               (result.errors && result.errors[0]?.message) || 
                               'Test failed';
-          await client.sendLog(testItem.id, {
+          await client.sendLog(testItemId, {
             level: 'ERROR',
             message: errorMessage
           });
@@ -222,11 +233,11 @@ async function uploadToReportPortal() {
 
         // depth2 step의 하위 step들(depth3 이상)을 로그로 처리
         if (depth2Step.steps && Array.isArray(depth2Step.steps)) {
-          await processStepsAsLogs(depth2Step.steps, testItem.id);
+          await processStepsAsLogs(depth2Step.steps, testItemId);
         }
 
         // 테스트 아이템 종료
-        await client.finishTestItem(testItem.id, {
+        await client.finishTestItem(testItemId, {
           status: status,
           issue: status === 'FAILED' ? {
             issueType: 'PRODUCT_BUG',
@@ -269,11 +280,22 @@ async function uploadToReportPortal() {
           for (const nestedSuite of suite.suites) {
             // Suite 시작
             // @ts-ignore - ReportPortal 클라이언트 타입 정의 문제
-            const suiteItem = await client.startTestItem({
+            const suiteItemInfo = await client.startTestItem({
               name: nestedSuite.title || 'Test Suite',
               type: 'SUITE',
               description: nestedSuite.title || 'Test Suite'
             }, launchId);
+
+            // suiteItemInfo에서 tempId 추출
+            const suiteItemId = typeof suiteItemInfo === 'string' 
+              ? suiteItemInfo 
+              : (suiteItemInfo?.tempId || suiteItemInfo?.id || suiteItemInfo);
+            
+            if (!suiteItemId) {
+              console.error('❌ Suite Item ID를 가져올 수 없습니다.');
+              console.error('Suite Item Info:', JSON.stringify(suiteItemInfo, null, 2));
+              throw new Error('Suite Item ID를 가져올 수 없습니다.');
+            }
 
             // 각 spec의 result.steps[] 배열 처리 (Jenkinsfile 로직과 동일)
             if (nestedSuite.specs && Array.isArray(nestedSuite.specs)) {
@@ -285,7 +307,7 @@ async function uploadToReportPortal() {
                       const finalResult = test.results[test.results.length - 1];
                       if (finalResult && finalResult.steps && Array.isArray(finalResult.steps)) {
                         // result.steps[] 배열의 최상위 레벨 step들을 개별 테스트로 처리
-                        await processResultSteps(finalResult, suiteItem.id);
+                        await processResultSteps(finalResult, suiteItemId);
                       }
                     }
                   }
@@ -294,7 +316,7 @@ async function uploadToReportPortal() {
             }
 
             // Suite 종료
-            await client.finishTestItem(suiteItem.id, {
+            await client.finishTestItem(suiteItemId, {
               status: 'PASSED'
             });
           }
