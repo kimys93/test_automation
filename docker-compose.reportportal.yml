@@ -1,0 +1,122 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:13
+    container_name: reportportal-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: rpuser
+      POSTGRES_PASSWORD: rppass
+      POSTGRES_DB: reportportal
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - reportportal-network
+
+  # Elasticsearch
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.9
+    container_name: reportportal-elasticsearch
+    restart: always
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    networks:
+      - reportportal-network
+
+  # MinIO (Object Storage)
+  minio:
+    image: minio/minio:latest
+    container_name: reportportal-minio
+    restart: always
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    networks:
+      - reportportal-network
+
+  # ReportPortal API
+  api:
+    image: reportportal/service-api:5.9.0
+    container_name: reportportal-api
+    restart: always
+    depends_on:
+      - postgres
+      - elasticsearch
+      - minio
+    environment:
+      - RP_DB_HOST=postgres
+      - RP_DB_PORT=5432
+      - RP_DB_NAME=reportportal
+      - RP_DB_USER=rpuser
+      - RP_DB_PASS=rppass
+      - RP_ES_HOSTS=http://elasticsearch:9200
+      - RP_MINIO_ENDPOINT=minio
+      - RP_MINIO_ACCESS_KEY=minioadmin
+      - RP_MINIO_SECRET_KEY=minioadmin
+      - RP_MINIO_BUCKET_NAME=reportportal
+    ports:
+      - "8080:8080"
+    networks:
+      - reportportal-network
+
+  # ReportPortal UAT (UI)
+  uat:
+    image: reportportal/service-uat:5.9.0
+    container_name: reportportal-uat
+    restart: always
+    depends_on:
+      - api
+    environment:
+      - RP_SERVER_PORT=8080
+      - RP_API_V1=http://api:8080
+    ports:
+      - "8081:8080"
+    networks:
+      - reportportal-network
+
+  # ReportPortal Migrations
+  migrations:
+    image: reportportal/service-migrations:5.9.0
+    container_name: reportportal-migrations
+    restart: "no"
+    depends_on:
+      - postgres
+    environment:
+      - RP_DB_HOST=postgres
+      - RP_DB_PORT=5432
+      - RP_DB_NAME=reportportal
+      - RP_DB_USER=rpuser
+      - RP_DB_PASS=rppass
+    networks:
+      - reportportal-network
+
+volumes:
+  postgres_data:
+  elasticsearch_data:
+  minio_data:
+
+networks:
+  reportportal-network:
+    driver: bridge
+
+

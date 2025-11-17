@@ -1,9 +1,50 @@
 // @ts-check
 import { defineConfig, devices } from '@playwright/test';
+// @ts-ignore - dotenv 타입 선언이 없어도 정상 동작
 import dotenv from 'dotenv';
 
 // .env 파일에서 환경 변수 로드
 dotenv.config();
+
+/**
+ * 리포트 설정 함수
+ * ReportPortal이 활성화된 경우 리포터 배열에 추가
+ */
+function getReporters() {
+  /** @type {import('@playwright/test').ReporterDescription[]} */
+  const reporters = [
+    ['html'],
+    ['list'],
+    ['json', { outputFile: 'test-results/results.json' }]
+  ];
+
+  // ReportPortal 리포터 (환경 변수 설정 시 활성화)
+  if (process.env.REPORTPORTAL_ENABLED === 'true') {
+    reporters.push([
+      '@reportportal/agent-js-playwright',
+      {
+        endpoint: process.env.REPORTPORTAL_ENDPOINT,
+        token: process.env.REPORTPORTAL_TOKEN || '',
+        launch: process.env.REPORTPORTAL_LAUNCH || `Playwright Tests - ${new Date().toISOString()}`,
+        project: process.env.REPORTPORTAL_PROJECT || 'default_project',
+        description: process.env.REPORTPORTAL_DESCRIPTION || 'Playwright 테스트 실행 결과',
+        attributes: [
+          { key: 'browser', value: 'chromium' },
+          { key: 'env', value: process.env.CI ? 'CI' : 'local' },
+          { key: 'testType', value: process.env.TEST_TYPE || 'sanity' }
+        ],
+        // 테스트 결과에 스크린샷 포함
+        attachPicturesToLogs: true,
+        // 실패한 테스트에만 상세 정보 포함
+        skippedIssue: false,
+        // 테스트 실행 모드
+        mode: 'DEFAULT'
+      }
+    ]);
+  }
+
+  return reporters;
+}
 
 /**
  * Playwright 테스트 설정
@@ -25,11 +66,7 @@ export default defineConfig({
   /* 병렬 실행할 워커 수 */
   workers: process.env.CI ? 1 : undefined,
   /* 리포트 설정 */
-  reporter: [
-    ['html'],
-    ['list'],
-    ['json', { outputFile: 'test-results/results.json' }]
-  ],
+  reporter: getReporters(),
   /* 공유 설정 */
   use: {
     /* 기본 URL */
