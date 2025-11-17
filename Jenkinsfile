@@ -17,7 +17,8 @@ pipeline {
         REPORTPORTAL_LAUNCH = "${env.REPORTPORTAL_LAUNCH}"
         REPORTPORTAL_DESCRIPTION = "${env.REPORTPORTAL_DESCRIPTION}"
         REPORTPORTAL_TOKEN = "${env.REPORTPORTAL_TOKEN}"
-        TEST_TYPE = "${env.TEST_TYPE}"
+        // TEST_TYPE이 설정되지 않았거나 null이면 기본값 'sanity' 사용
+        TEST_TYPE = "${env.TEST_TYPE ?: 'sanity'}"
     }
     
     stages {
@@ -67,6 +68,7 @@ pipeline {
                     // ReportPortal 환경 변수 확인
                     echo "REPORTPORTAL_ENABLED: ${env.REPORTPORTAL_ENABLED ?: 'NOT SET'}"
                     echo "REPORTPORTAL_ENDPOINT: ${env.REPORTPORTAL_ENDPOINT ?: 'NOT SET'}"
+                    echo "TEST_TYPE: ${env.TEST_TYPE ?: 'NOT SET (using default: sanity)'}"
                     if (env.REPORTPORTAL_TOKEN && env.REPORTPORTAL_TOKEN.length() > 20) {
                         echo "REPORTPORTAL_TOKEN: ${env.REPORTPORTAL_TOKEN.substring(0, 20)}..."
                     } else if (env.REPORTPORTAL_TOKEN) {

@@ -31,7 +31,7 @@ function getReporters() {
         attributes: [
           { key: 'browser', value: 'chromium' },
           { key: 'env', value: process.env.CI ? 'CI' : 'local' },
-          { key: 'testType', value: process.env.TEST_TYPE || 'sanity' }
+          { key: 'testType', value: (process.env.TEST_TYPE && process.env.TEST_TYPE !== 'null' && process.env.TEST_TYPE.trim() !== '') ? process.env.TEST_TYPE : 'sanity' }
         ],
         // 테스트 결과에 스크린샷 포함
         attachPicturesToLogs: true,
