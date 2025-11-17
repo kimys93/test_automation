@@ -30,12 +30,20 @@ pipeline {
         stage('Install Dependencies') {
             steps {
                 script {
-                    // node_modules가 없으면 npm install 실행
-                    if (!fileExists('node_modules')) {
-                        echo 'node_modules not found, running npm install...'
-                        sh 'npm install'
+                    // CI 환경에서는 항상 npm install 실행 (의존성 동기화 보장)
+                    echo 'Installing dependencies...'
+                    sh 'npm install'
+                    
+                    // ReportPortal 패키지 설치 확인
+                    def reportportalExists = sh(
+                        script: 'test -d node_modules/@reportportal/agent-js-playwright && exit 0 || exit 1',
+                        returnStatus: true
+                    )
+                    if (reportportalExists != 0) {
+                        echo 'Warning: @reportportal/agent-js-playwright not found, installing...'
+                        sh 'npm install @reportportal/agent-js-playwright'
                     } else {
-                        echo 'node_modules already exists, skipping npm install'
+                        echo 'ReportPortal agent already installed'
                     }
                     
                     // playwright가 설치되어 있지 않으면 설치
