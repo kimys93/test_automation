@@ -57,9 +57,15 @@ pipeline {
             steps {
                 script {
                     // ReportPortal 환경 변수 확인
-                    echo "REPORTPORTAL_ENABLED: ${env.REPORTPORTAL_ENABLED}"
-                    echo "REPORTPORTAL_ENDPOINT: ${env.REPORTPORTAL_ENDPOINT}"
-                    echo "REPORTPORTAL_TOKEN: ${env.REPORTPORTAL_TOKEN ? env.REPORTPORTAL_TOKEN.substring(0, 20) + '...' : 'NOT SET'}"
+                    echo "REPORTPORTAL_ENABLED: ${env.REPORTPORTAL_ENABLED ?: 'NOT SET'}"
+                    echo "REPORTPORTAL_ENDPOINT: ${env.REPORTPORTAL_ENDPOINT ?: 'NOT SET'}"
+                    if (env.REPORTPORTAL_TOKEN && env.REPORTPORTAL_TOKEN.length() > 20) {
+                        echo "REPORTPORTAL_TOKEN: ${env.REPORTPORTAL_TOKEN.substring(0, 20)}..."
+                    } else if (env.REPORTPORTAL_TOKEN) {
+                        echo "REPORTPORTAL_TOKEN: ${env.REPORTPORTAL_TOKEN} (too short to mask)"
+                    } else {
+                        echo "REPORTPORTAL_TOKEN: NOT SET"
+                    }
                     
                     try {
                         sh 'npm run test:sanity'
