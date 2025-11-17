@@ -23,7 +23,7 @@ class ChatPage extends BasePage {
     // 개별 메시지 요소
     this.messageItems = this.page.locator('.message, .chat-message, .msg-item');
     // 채팅방 검색 입력 필드
-    this.chatSearchInput = this.page.locator('#chatSearchInput, input[placeholder*="검색"]');
+    this.chatSearchInput = this.page.locator('#userSearch');
     // 새 채팅 시작 버튼
     this.newChatButton = this.page.locator('#newChatButton, button:has-text("새 채팅"), button:has-text("채팅 시작")');
     // 채팅방 나가기 버튼

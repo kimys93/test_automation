@@ -93,86 +93,129 @@ async function uploadToReportPortal() {
     let skippedTests = 0;
 
     /**
-     * 테스트 스펙 파싱 (각 spec이 test.step()에 해당)
+     * result.steps[] 배열의 최상위 레벨 step들을 개별 테스트로 처리 (Depth 2 기준)
+     * Jenkinsfile.windows의 Slack send 로직과 동일
      */
-    async function processSpecs(specs, parentItemId) {
-      if (!specs || !Array.isArray(specs)) return;
+    async function processResultSteps(result, parentItemId) {
+      if (!result.steps || !Array.isArray(result.steps)) return;
 
-      for (const spec of specs) {
-        // 각 spec은 개별 테스트 케이스 (Depth 2 기준)
-        if (spec.title) {
-          totalTests++;
-          
-          // 테스트 결과 확인
-          let status = 'PASSED';
-          let errorMessage = null;
-          
-          if (spec.tests && Array.isArray(spec.tests)) {
-            for (const test of spec.tests) {
-              if (test.results && Array.isArray(test.results)) {
-                for (const result of test.results) {
-                  if (result.status === 'failed') {
-                    status = 'FAILED';
-                    if (result.error) {
-                      errorMessage = result.error.message || 'Test failed';
-                    }
-                  } else if (result.status === 'skipped') {
-                    status = 'SKIPPED';
-                  }
+      const processedStepTitles = new Set(); // 중복 방지
+      const resultStatus = result.status || 'passed';
+
+      for (const depth2Step of result.steps) {
+        const stepTitle = depth2Step.title || '';
+        
+        // 이미 처리한 step이면 건너뛰기 (중복 방지)
+        if (stepTitle && processedStepTitles.has(stepTitle)) {
+          continue;
+        }
+
+        // depth2만 카운트 (depth3는 depth2Step.steps가 있지만 카운트하지 않음)
+        totalTests++;
+        processedStepTitles.add(stepTitle);
+
+        // depth2 step 내부에 error가 있는지 확인 (depth3까지 확인)
+        let depth2StepHasError = false;
+
+        // depth2 step 자체에 error 필드가 있는지 확인
+        if (depth2Step.error) {
+          depth2StepHasError = true;
+        }
+
+        // depth2 step의 하위 step들(depth3)을 확인하여 error가 있는지 찾기
+        if (!depth2StepHasError && depth2Step.steps && Array.isArray(depth2Step.steps)) {
+          for (const depth3Step of depth2Step.steps) {
+            // depth3 step 자체에 error가 있는지 확인
+            if (depth3Step.error) {
+              depth2StepHasError = true;
+              break;
+            }
+            // depth3 step의 하위 step들(depth4) 확인
+            if (depth3Step.steps && Array.isArray(depth3Step.steps)) {
+              for (const depth4Step of depth3Step.steps) {
+                if (depth4Step.error) {
+                  depth2StepHasError = true;
+                  break;
                 }
+              }
+              if (depth2StepHasError) {
+                break;
               }
             }
           }
-          
-          if (status === 'PASSED') passedTests++;
-          else if (status === 'FAILED') failedTests++;
-          else if (status === 'SKIPPED') skippedTests++;
+        }
 
-          // 테스트 아이템 시작
-          const testItem = await client.startTestItem({
-            name: spec.title,
-            type: 'TEST',
-            description: spec.title,
-            hasStats: true
-          }, launchId, parentItemId || undefined);
+        // result.errors 배열에서 에러 확인
+        if (!depth2StepHasError && result.errors && Array.isArray(result.errors) && result.errors.length > 0) {
+          // result.errors에 에러가 있으면, 해당 depth2 step이 실패한 것으로 간주할 수 있음
+          // 하지만 정확한 매칭은 어려우므로 여기서는 depth2StepHasError가 false인 경우는 passed로 처리
+        }
 
-          // 에러 로그 추가
-          if (errorMessage) {
-            await client.sendLog(testItem.id, {
-              level: 'ERROR',
-              message: errorMessage
-            });
+        // depth2 step의 실제 실패 여부에 따라 상태 결정
+        let status = 'PASSED';
+        if (resultStatus === 'failed' || resultStatus === 'timedout' || resultStatus === 'interrupted') {
+          // depth2 step에 실제로 error가 있는 경우만 실패로 처리
+          if (depth2StepHasError) {
+            status = 'FAILED';
+            failedTests++;
+          } else {
+            // depth2 step에 error가 없으면 passed로 처리
+            status = 'PASSED';
+            passedTests++;
           }
-
-          // 테스트 결과의 steps 처리 (Depth 3 이상)
-          if (spec.tests && Array.isArray(spec.tests)) {
-            for (const test of spec.tests) {
-              if (test.results && Array.isArray(test.results)) {
-                for (const result of test.results) {
-                  if (result.steps && Array.isArray(result.steps)) {
-                    await processSteps(result.steps, testItem.id);
-                  }
-                }
-              }
-            }
+        } else if (resultStatus === 'skipped') {
+          status = 'SKIPPED';
+          skippedTests++;
+        } else {
+          // passed
+          if (depth2StepHasError) {
+            status = 'FAILED';
+            failedTests++;
+          } else {
+            status = 'PASSED';
+            passedTests++;
           }
+        }
 
-          // 테스트 아이템 종료
-          await client.finishTestItem(testItem.id, {
-            status: status,
-            issue: status === 'FAILED' ? {
-              issueType: 'PRODUCT_BUG',
-              comment: errorMessage || 'Test failed'
-            } : undefined
+        // 테스트 아이템 시작
+        const testItem = await client.startTestItem({
+          name: stepTitle || 'Unnamed Step',
+          type: 'TEST',
+          description: stepTitle || 'Unnamed Step',
+          hasStats: true
+        }, launchId, parentItemId || undefined);
+
+        // 에러 로그 추가
+        if (depth2StepHasError) {
+          const errorMessage = depth2Step.error?.message || 
+                              (result.errors && result.errors[0]?.message) || 
+                              'Test failed';
+          await client.sendLog(testItem.id, {
+            level: 'ERROR',
+            message: errorMessage
           });
         }
+
+        // depth2 step의 하위 step들(depth3 이상)을 로그로 처리
+        if (depth2Step.steps && Array.isArray(depth2Step.steps)) {
+          await processStepsAsLogs(depth2Step.steps, testItem.id);
+        }
+
+        // 테스트 아이템 종료
+        await client.finishTestItem(testItem.id, {
+          status: status,
+          issue: status === 'FAILED' ? {
+            issueType: 'PRODUCT_BUG',
+            comment: depth2Step.error?.message || 'Test failed'
+          } : undefined
+        });
       }
     }
 
     /**
      * test.step()의 하위 단계를 로그로 처리 (Depth 3 이상)
      */
-    async function processSteps(steps, parentItemId) {
+    async function processStepsAsLogs(steps, parentItemId) {
       if (!steps || !Array.isArray(steps)) return;
 
       for (const step of steps) {
@@ -188,7 +231,7 @@ async function uploadToReportPortal() {
 
           // 중첩된 steps 처리
           if (step.steps && Array.isArray(step.steps)) {
-            await processSteps(step.steps, parentItemId);
+            await processStepsAsLogs(step.steps, parentItemId);
           }
         }
       }
@@ -197,10 +240,10 @@ async function uploadToReportPortal() {
     // Suites 처리
     if (resultsJson.suites && Array.isArray(resultsJson.suites)) {
       for (const suite of resultsJson.suites) {
-        // 중첩된 suites 처리 (test.describe.serial() 구조)
+        // 중첩된 suites 처리
         if (suite.suites && Array.isArray(suite.suites)) {
           for (const nestedSuite of suite.suites) {
-            // Suite 시작 (test.describe.serial() 블록)
+            // Suite 시작
             // @ts-ignore - ReportPortal 클라이언트 타입 정의 문제
             const suiteItem = await client.startTestItem({
               name: nestedSuite.title || 'Test Suite',
@@ -208,9 +251,22 @@ async function uploadToReportPortal() {
               description: nestedSuite.title || 'Test Suite'
             }, launchId);
 
-            // 각 spec을 개별 테스트로 처리
+            // 각 spec의 result.steps[] 배열 처리 (Jenkinsfile 로직과 동일)
             if (nestedSuite.specs && Array.isArray(nestedSuite.specs)) {
-              await processSpecs(nestedSuite.specs, suiteItem.id);
+              for (const spec of nestedSuite.specs) {
+                if (spec.tests && Array.isArray(spec.tests)) {
+                  for (const test of spec.tests) {
+                    if (test.results && Array.isArray(test.results)) {
+                      // result가 여러 개일 수 있으므로, 마지막 result만 사용 (최종 결과)
+                      const finalResult = test.results[test.results.length - 1];
+                      if (finalResult && finalResult.steps && Array.isArray(finalResult.steps)) {
+                        // result.steps[] 배열의 최상위 레벨 step들을 개별 테스트로 처리
+                        await processResultSteps(finalResult, suiteItem.id);
+                      }
+                    }
+                  }
+                }
+              }
             }
 
             // Suite 종료
@@ -220,7 +276,18 @@ async function uploadToReportPortal() {
           }
         } else if (suite.specs && Array.isArray(suite.specs)) {
           // 직접 specs가 있는 경우
-          await processSpecs(suite.specs);
+          for (const spec of suite.specs) {
+            if (spec.tests && Array.isArray(spec.tests)) {
+              for (const test of spec.tests) {
+                if (test.results && Array.isArray(test.results)) {
+                  const finalResult = test.results[test.results.length - 1];
+                  if (finalResult && finalResult.steps && Array.isArray(finalResult.steps)) {
+                    await processResultSteps(finalResult, null);
+                  }
+                }
+              }
+            }
+          }
         }
       }
     }

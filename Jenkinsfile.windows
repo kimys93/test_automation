@@ -117,9 +117,9 @@ pipeline {
                     try {
                         // result.json을 파싱하여 ReportPortal에 업로드
                         bat 'npm run upload:reportportal'
-                        echo '✅ ReportPortal 업로드 완료'
+                        echo '✅ ReportPortal upload complete'
                     } catch (Exception e) {
-                        echo "❌ ReportPortal 업로드 중 오류 발생: ${e.message}"
+                        echo "❌ ReportPortal upload error: ${e.message}"
                         // 업로드 실패해도 빌드는 계속 진행
                         currentBuild.result = currentBuild.result ?: 'UNSTABLE'
                     }
