@@ -201,10 +201,10 @@ async function uploadToReportPortal() {
           }
         }
 
-        // 테스트 아이템 시작 (SUITE 타입으로 변경하여 Suite name 검색 가능하도록)
+        // 테스트 아이템 시작 (TEST 타입으로 변경하여 상세 페이지 표시 가능하도록)
         const startTestItemParams = {
           name: stepTitle || 'Unnamed Step',
-          type: 'SUITE',
+          type: 'TEST',
           description: stepTitle || 'Unnamed Step',
           hasStats: true
         };
@@ -229,68 +229,83 @@ async function uploadToReportPortal() {
           throw new Error('Test Item ID를 가져올 수 없습니다.');
         }
 
-        // SUITE 내부에 실제 TEST 아이템 추가 (ReportPortal 구조 완성)
-        const innerTestItemInfo = await client.startTestItem({
-          name: `${stepTitle} - 실행`,
-          type: 'TEST',
-          description: `${stepTitle} 테스트 실행`,
-          hasStats: true
-        }, launchId, testItemId);
+        // TEST 내부에 STEP 아이템 추가 (depth3 step들을 STEP으로 처리)
+        if (depth2Step.steps && Array.isArray(depth2Step.steps) && depth2Step.steps.length > 0) {
+          // depth3 step들을 STEP으로 처리
+          for (const depth3Step of depth2Step.steps) {
+            const stepItemInfo = await client.startTestItem({
+              name: depth3Step.title || 'Step',
+              type: 'STEP',
+              description: depth3Step.title || 'Step',
+              hasStats: false
+            }, launchId, testItemId);
 
-        const innerTestItemId = typeof innerTestItemInfo === 'string' 
-          ? innerTestItemInfo 
-          : (innerTestItemInfo?.tempId || innerTestItemInfo?.id || innerTestItemInfo);
+            const stepItemId = typeof stepItemInfo === 'string' 
+              ? stepItemInfo 
+              : (stepItemInfo?.tempId || stepItemInfo?.id || stepItemInfo);
 
-        if (innerTestItemId) {
-          // 테스트 시작 로그 추가
-          await client.sendLog(innerTestItemId, {
+            if (stepItemId) {
+              // STEP에 로그 추가
+              if (depth3Step.error) {
+                await client.sendLog(stepItemId, {
+                  level: 'ERROR',
+                  message: depth3Step.error.message || 'Step failed'
+                });
+              } else {
+                await client.sendLog(stepItemId, {
+                  level: 'INFO',
+                  message: depth3Step.title || 'Step executed'
+                });
+              }
+
+              // depth4 이상의 step들을 로그로 처리
+              if (depth3Step.steps && Array.isArray(depth3Step.steps)) {
+                await processStepsAsLogs(depth3Step.steps, stepItemId);
+              }
+
+              // STEP 종료
+              await client.finishTestItem(stepItemId, {
+                status: depth3Step.error ? 'FAILED' : 'PASSED'
+              });
+            }
+          }
+        } else {
+          // 하위 step이 없으면 직접 로그 추가
+          await client.sendLog(testItemId, {
             level: 'INFO',
             message: `테스트 시작: ${stepTitle}`
           });
 
-          // 에러 로그 추가
           if (depth2StepHasError) {
             const errorMessage = depth2Step.error?.message || 
                                 (result.errors && result.errors[0]?.message) || 
                                 'Test failed';
-            await client.sendLog(innerTestItemId, {
+            await client.sendLog(testItemId, {
               level: 'ERROR',
               message: `테스트 실패: ${errorMessage}`
             });
           } else {
-            // 성공한 경우에도 성공 로그 추가
-            await client.sendLog(innerTestItemId, {
+            await client.sendLog(testItemId, {
               level: 'INFO',
               message: `테스트 통과: ${stepTitle}`
             });
           }
-
-          // depth2 step의 하위 step들(depth3 이상)을 로그로 처리
-          if (depth2Step.steps && Array.isArray(depth2Step.steps)) {
-            await processStepsAsLogs(depth2Step.steps, innerTestItemId);
-          } else {
-            // 하위 step이 없어도 최소한의 정보 로그 추가
-            await client.sendLog(innerTestItemId, {
-              level: 'INFO',
-              message: `상태: ${status}`
-            });
-          }
-
-          // 내부 TEST 아이템 종료
-          await client.finishTestItem(innerTestItemId, {
-            status: status,
-            issue: status === 'FAILED' ? {
-              issueType: 'PRODUCT_BUG',
-              comment: depth2Step.error?.message || 'Test failed'
-            } : undefined
-          });
         }
 
-        // SUITE 아이템 종료 (내부 TEST가 완료된 후)
+        // TEST 아이템 종료
         try {
-          await client.finishTestItem(testItemId, {
+          const finishParams = {
             status: status
-          });
+          };
+          
+          if (status === 'FAILED') {
+            finishParams.issue = {
+              issueType: 'PRODUCT_BUG',
+              comment: depth2Step.error?.message || 'Test failed'
+            };
+          }
+          
+          await client.finishTestItem(testItemId, finishParams);
         } catch (finishError) {
           console.error(`❌ Test Item 종료 중 오류 (${stepTitle}):`, finishError.message);
           // 개별 테스트 아이템 종료 실패해도 계속 진행
