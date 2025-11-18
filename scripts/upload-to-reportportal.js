@@ -119,9 +119,12 @@ async function uploadToReportPortal() {
     /**
      * result.steps[] 배열의 최상위 레벨 step들을 개별 테스트로 처리 (Depth 2 기준)
      * Jenkinsfile.windows의 Slack send 로직과 동일
+     * @returns {Promise<string>} Suite의 최종 상태 ('PASSED', 'FAILED', 'SKIPPED')
      */
     async function processResultSteps(result, parentItemId) {
-      if (!result.steps || !Array.isArray(result.steps)) return;
+      if (!result.steps || !Array.isArray(result.steps)) return 'PASSED';
+      
+      let suiteStatus = 'PASSED'; // Suite의 최종 상태 추적
 
       const processedStepTitles = new Set(); // 중복 방지
       const resultStatus = result.status || 'passed';
@@ -306,11 +309,21 @@ async function uploadToReportPortal() {
           }
           
           await client.finishTestItem(testItemId, finishParams);
+          
+          // Suite 상태 업데이트 (FAILED가 최우선)
+          if (status === 'FAILED') {
+            suiteStatus = 'FAILED';
+          } else if (status === 'SKIPPED' && suiteStatus !== 'FAILED') {
+            suiteStatus = 'SKIPPED';
+          }
         } catch (finishError) {
           console.error(`❌ Test Item 종료 중 오류 (${stepTitle}):`, finishError.message);
           // 개별 테스트 아이템 종료 실패해도 계속 진행
+          suiteStatus = 'FAILED'; // 오류 발생 시 FAILED로 처리
         }
       }
+      
+      return suiteStatus;
     }
 
     /**
@@ -364,6 +377,7 @@ async function uploadToReportPortal() {
             }
 
             // 각 spec의 result.steps[] 배열 처리 (Jenkinsfile 로직과 동일)
+            let suiteFinalStatus = 'PASSED';
             if (nestedSuite.specs && Array.isArray(nestedSuite.specs)) {
               for (const spec of nestedSuite.specs) {
                 if (spec.tests && Array.isArray(spec.tests)) {
@@ -373,7 +387,13 @@ async function uploadToReportPortal() {
                       const finalResult = test.results[test.results.length - 1];
                       if (finalResult && finalResult.steps && Array.isArray(finalResult.steps)) {
                         // result.steps[] 배열의 최상위 레벨 step들을 개별 테스트로 처리
-                        await processResultSteps(finalResult, suiteItemId);
+                        const stepStatus = await processResultSteps(finalResult, suiteItemId);
+                        // Suite 상태 업데이트 (FAILED가 최우선)
+                        if (stepStatus === 'FAILED') {
+                          suiteFinalStatus = 'FAILED';
+                        } else if (stepStatus === 'SKIPPED' && suiteFinalStatus !== 'FAILED') {
+                          suiteFinalStatus = 'SKIPPED';
+                        }
                       }
                     }
                   }
@@ -381,10 +401,10 @@ async function uploadToReportPortal() {
               }
             }
 
-            // Suite 종료
+            // Suite 종료 (내부 TEST들의 상태에 따라 결정)
             try {
               await client.finishTestItem(suiteItemId, {
-                status: 'PASSED'
+                status: suiteFinalStatus
               });
             } catch (finishError) {
               console.error(`❌ Suite 종료 중 오류 (${nestedSuite.title || 'Unknown'}):`, finishError.message);
