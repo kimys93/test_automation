@@ -8,41 +8,15 @@ dotenv.config();
 
 /**
  * 리포트 설정 함수
- * ReportPortal이 활성화된 경우 리포터 배열에 추가
  */
 function getReporters() {
   /** @type {import('@playwright/test').ReporterDescription[]} */
   const reporters = [
     ['html'],
     ['list'],
-    ['json', { outputFile: 'test-results/results.json' }]
+    ['json', { outputFile: 'test-results/results.json' }],
+    ['allure-playwright', { outputFolder: 'allure-results' }]
   ];
-
-  // ReportPortal 리포터 비활성화 (중복 Launch 방지)
-  // upload-to-reportportal.js 스크립트를 사용하여 ReportPortal에 업로드하므로 리포터는 비활성화
-  // if (process.env.REPORTPORTAL_ENABLED === 'true') {
-  //   reporters.push([
-  //     '@reportportal/agent-js-playwright',
-  //     {
-  //       endpoint: process.env.REPORTPORTAL_ENDPOINT,
-  //       token: process.env.REPORTPORTAL_TOKEN || '',
-  //       launch: process.env.REPORTPORTAL_LAUNCH || `Playwright Tests - ${new Date().toISOString()}`,
-  //       project: process.env.REPORTPORTAL_PROJECT || 'default_project',
-  //       description: process.env.REPORTPORTAL_DESCRIPTION || 'Playwright 테스트 실행 결과',
-  //       attributes: [
-  //         { key: 'browser', value: 'chromium' },
-  //         { key: 'env', value: process.env.CI ? 'CI' : 'local' },
-  //         { key: 'testType', value: (process.env.TEST_TYPE && process.env.TEST_TYPE !== 'null' && process.env.TEST_TYPE.trim() !== '') ? process.env.TEST_TYPE : 'sanity' }
-  //       ],
-  //       // 테스트 결과에 스크린샷 포함
-  //       attachPicturesToLogs: true,
-  //       // 실패한 테스트에만 상세 정보 포함
-  //       skippedIssue: false,
-  //       // 테스트 실행 모드
-  //       mode: 'DEFAULT'
-  //     }
-  //   ]);
-  // }
 
   return reporters;
 }
