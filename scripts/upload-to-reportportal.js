@@ -351,33 +351,14 @@ async function uploadToReportPortal() {
       }
     }
 
-    // Suites 처리
+    // Suites 처리 (Suite 제거하고 Launch 바로 아래에 TEST 배치하여 필터링 작동)
     if (resultsJson.suites && Array.isArray(resultsJson.suites)) {
       for (const suite of resultsJson.suites) {
         // 중첩된 suites 처리
         if (suite.suites && Array.isArray(suite.suites)) {
           for (const nestedSuite of suite.suites) {
-            // Suite 시작
-            // @ts-ignore - Suite는 parentItemId 없이 launchId만 전달
-            const suiteItemInfo = await client.startTestItem({
-              name: nestedSuite.title || 'Test Suite',
-              type: 'SUITE',
-              description: nestedSuite.title || 'Test Suite'
-            }, launchId);
-
-            // suiteItemInfo에서 tempId 추출
-            const suiteItemId = typeof suiteItemInfo === 'string' 
-              ? suiteItemInfo 
-              : (suiteItemInfo?.tempId || suiteItemInfo?.id || suiteItemInfo);
-            
-            if (!suiteItemId) {
-              console.error('❌ Suite Item ID를 가져올 수 없습니다.');
-              console.error('Suite Item Info:', JSON.stringify(suiteItemInfo, null, 2));
-              throw new Error('Suite Item ID를 가져올 수 없습니다.');
-            }
-
+            // Suite를 제거하고 Launch 바로 아래에 TEST를 배치
             // 각 spec의 result.steps[] 배열 처리 (Jenkinsfile 로직과 동일)
-            let suiteFinalStatus = 'PASSED';
             if (nestedSuite.specs && Array.isArray(nestedSuite.specs)) {
               for (const spec of nestedSuite.specs) {
                 if (spec.tests && Array.isArray(spec.tests)) {
@@ -387,28 +368,13 @@ async function uploadToReportPortal() {
                       const finalResult = test.results[test.results.length - 1];
                       if (finalResult && finalResult.steps && Array.isArray(finalResult.steps)) {
                         // result.steps[] 배열의 최상위 레벨 step들을 개별 테스트로 처리
-                        const stepStatus = await processResultSteps(finalResult, suiteItemId);
-                        // Suite 상태 업데이트 (FAILED가 최우선)
-                        if (stepStatus === 'FAILED') {
-                          suiteFinalStatus = 'FAILED';
-                        } else if (stepStatus === 'SKIPPED' && suiteFinalStatus !== 'FAILED') {
-                          suiteFinalStatus = 'SKIPPED';
-                        }
+                        // parentItemId를 null로 전달하여 Launch 바로 아래에 배치
+                        await processResultSteps(finalResult, null);
                       }
                     }
                   }
                 }
               }
-            }
-
-            // Suite 종료 (내부 TEST들의 상태에 따라 결정)
-            try {
-              await client.finishTestItem(suiteItemId, {
-                status: suiteFinalStatus
-              });
-            } catch (finishError) {
-              console.error(`❌ Suite 종료 중 오류 (${nestedSuite.title || 'Unknown'}):`, finishError.message);
-              // Suite 종료 실패해도 계속 진행
             }
           }
         } else if (suite.specs && Array.isArray(suite.specs)) {
