@@ -229,6 +229,12 @@ async function uploadToReportPortal() {
           throw new Error('Test Item ID를 가져올 수 없습니다.');
         }
 
+        // 테스트 시작 로그 추가 (항상 추가하여 'No results found' 방지)
+        await client.sendLog(testItemId, {
+          level: 'INFO',
+          message: `테스트 시작: ${stepTitle}`
+        });
+
         // 에러 로그 추가
         if (depth2StepHasError) {
           const errorMessage = depth2Step.error?.message || 
@@ -236,13 +242,25 @@ async function uploadToReportPortal() {
                               'Test failed';
           await client.sendLog(testItemId, {
             level: 'ERROR',
-            message: errorMessage
+            message: `테스트 실패: ${errorMessage}`
+          });
+        } else {
+          // 성공한 경우에도 성공 로그 추가
+          await client.sendLog(testItemId, {
+            level: 'INFO',
+            message: `테스트 통과: ${stepTitle}`
           });
         }
 
         // depth2 step의 하위 step들(depth3 이상)을 로그로 처리
         if (depth2Step.steps && Array.isArray(depth2Step.steps)) {
           await processStepsAsLogs(depth2Step.steps, testItemId);
+        } else {
+          // 하위 step이 없어도 최소한의 정보 로그 추가
+          await client.sendLog(testItemId, {
+            level: 'INFO',
+            message: `상태: ${status}`
+          });
         }
 
         // 테스트 아이템 종료 (모든 로그가 완료된 후)
