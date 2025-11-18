@@ -404,12 +404,17 @@ async function uploadToReportPortal() {
       }
     }
 
+    // Launch 종료 전 모든 TEST 완료 대기
+    await new Promise(resolve => setImmediate(resolve));
+    
     // Launch 종료
     const finalStatus = failedTests > 0 ? 'FAILED' : 'PASSED';
+    console.log(`[DEBUG] Finishing Launch: ${launchId}, Final Status: ${finalStatus}`);
     try {
       await client.finishLaunch(launchId, {
         status: finalStatus
       });
+      console.log(`[DEBUG] Launch finished: ${launchId}`);
     } catch (finishError) {
       console.error('❌ Launch 종료 중 오류:', finishError.message);
       throw finishError; // Launch 종료 실패는 치명적이므로 재throw
