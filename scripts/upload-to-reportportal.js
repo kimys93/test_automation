@@ -297,8 +297,12 @@ async function uploadToReportPortal() {
 
         // TEST 아이템 종료
         try {
+          // status 값 명시적으로 확인 및 로그
+          console.log(`[DEBUG] Finishing TEST: ${stepTitle}, Status: ${status}`);
+          
           const finishParams = {
-            status: status
+            status: status,
+            endTime: new Date().toISOString()
           };
           
           if (status === 'FAILED') {
@@ -308,7 +312,12 @@ async function uploadToReportPortal() {
             };
           }
           
+          // finishTestItem 호출 전 모든 비동기 작업 완료 대기
+          await new Promise(resolve => setImmediate(resolve));
+          
           await client.finishTestItem(testItemId, finishParams);
+          
+          console.log(`[DEBUG] TEST finished: ${stepTitle}, Status: ${status}`);
           
           // Suite 상태 업데이트 (FAILED가 최우선)
           if (status === 'FAILED') {
