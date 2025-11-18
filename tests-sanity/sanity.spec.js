@@ -14,8 +14,10 @@ import NotificationPage from '../pages/NotificationPage.js';
  * 하나의 test() 블록으로 구성하여 브라우저를 유지하면서 순차 실행
  * 각 test.step()은 Depth 2 기준으로 Slack send에서 카운팅됨
  */
-test('Sanity Test - 핵심 기능 검증', async ({ page }) => {
+test('Sanity Test - 핵심 기능 검증', async ({ page, context, browser }) => {
   test.setTimeout(120000); // 전체 테스트 타임아웃 설정
+  
+  try {
 
   await test.step('홈페이지 접속 및 기본 로드 확인', async () => {
     const basePage = new BasePage(page);
@@ -307,5 +309,17 @@ test('Sanity Test - 핵심 기능 검증', async ({ page }) => {
       });
     });
   });
+  
+  } finally {
+    // 테스트 종료 후 브라우저 명시적으로 종료 (n8n에서 실행 시 종료되지 않는 문제 해결)
+    try {
+      await page?.close();
+      await context?.close();
+      await browser?.close();
+    } catch (error) {
+      // 이미 종료되었거나 오류가 발생해도 무시
+      console.log('Browser cleanup:', error.message);
+    }
+  }
 
 });

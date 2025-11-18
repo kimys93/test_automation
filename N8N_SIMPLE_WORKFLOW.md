@@ -292,8 +292,23 @@ $14: {{ $json.testRun.commit_hash }}
 **참고:** 
 - Code 노드에서 이미 각 testCase를 개별 아이템으로 반환했으므로, **Loop Over Items 노드는 필요 없습니다!**
 - n8n이 자동으로 각 아이템에 대해 다음 PostgreSQL 노드를 실행합니다.
+- **만약 워크플로우가 오래 걸리거나 멈춘다면:** Loop Over Items 노드를 추가하는 것을 고려하세요.
 
-### 7. PostgreSQL 노드 (test_cases 저장)
+### 7. (선택사항) Loop Over Items 노드
+
+**설정:**
+- **Field to Split Out**: `json` (또는 비워두기)
+- **Options**: 기본값 사용
+
+**사용 시나리오:**
+- Code 노드의 자동 반복이 제대로 동작하지 않을 때
+- 명시적으로 각 testCase를 하나씩 처리하고 싶을 때
+
+**참고:** 
+- 이 노드는 선택사항입니다. Code 노드가 올바르게 배열을 반환하면 필요 없습니다.
+- 하지만 명시적으로 사용하면 더 안정적일 수 있습니다.
+
+### 8. PostgreSQL 노드 (test_cases 저장)
 
 **설정:**
 
@@ -329,7 +344,7 @@ $10: null
 - `$9` (attachments): JSONB 타입이므로 JSON.stringify 필요
 - `$10` (steps): 현재 null로 설정 (필요시 Code 노드에서 추가)
 
-### 8. Slack 노드 (테스트 결과 알림)
+### 9. Slack 노드 (테스트 결과 알림)
 
 **설정:**
 
