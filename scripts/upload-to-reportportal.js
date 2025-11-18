@@ -202,12 +202,21 @@ async function uploadToReportPortal() {
         }
 
         // 테스트 아이템 시작
-        const testItemInfo = await client.startTestItem({
+        const startTestItemParams = {
           name: stepTitle || 'Unnamed Step',
           type: 'TEST',
           description: stepTitle || 'Unnamed Step',
           hasStats: true
-        }, launchId, parentItemId || undefined);
+        };
+        
+        // parentItemId가 있으면 전달, 없으면 launchId만 전달
+        let testItemInfo;
+        if (parentItemId) {
+          testItemInfo = await client.startTestItem(startTestItemParams, launchId, parentItemId);
+        } else {
+          // @ts-ignore - parentItemId가 없을 때는 2개 인자만 전달 가능
+          testItemInfo = await client.startTestItem(startTestItemParams, launchId);
+        }
 
         // testItemInfo에서 tempId 추출
         const testItemId = typeof testItemInfo === 'string' 
@@ -236,14 +245,24 @@ async function uploadToReportPortal() {
           await processStepsAsLogs(depth2Step.steps, testItemId);
         }
 
-        // 테스트 아이템 종료
-        await client.finishTestItem(testItemId, {
-          status: status,
-          issue: status === 'FAILED' ? {
-            issueType: 'PRODUCT_BUG',
-            comment: depth2Step.error?.message || 'Test failed'
-          } : undefined
-        });
+        // 테스트 아이템 종료 (모든 로그가 완료된 후)
+        try {
+          const finishParams = {
+            status: status
+          };
+          
+          if (status === 'FAILED') {
+            finishParams.issue = {
+              issueType: 'PRODUCT_BUG',
+              comment: depth2Step.error?.message || 'Test failed'
+            };
+          }
+          
+          await client.finishTestItem(testItemId, finishParams);
+        } catch (finishError) {
+          console.error(`❌ Test Item 종료 중 오류 (${stepTitle}):`, finishError.message);
+          // 개별 테스트 아이템 종료 실패해도 계속 진행
+        }
       }
     }
 
@@ -279,7 +298,7 @@ async function uploadToReportPortal() {
         if (suite.suites && Array.isArray(suite.suites)) {
           for (const nestedSuite of suite.suites) {
             // Suite 시작
-            // @ts-ignore - ReportPortal 클라이언트 타입 정의 문제
+            // @ts-ignore - Suite는 parentItemId 없이 launchId만 전달
             const suiteItemInfo = await client.startTestItem({
               name: nestedSuite.title || 'Test Suite',
               type: 'SUITE',
@@ -316,9 +335,14 @@ async function uploadToReportPortal() {
             }
 
             // Suite 종료
-            await client.finishTestItem(suiteItemId, {
-              status: 'PASSED'
-            });
+            try {
+              await client.finishTestItem(suiteItemId, {
+                status: 'PASSED'
+              });
+            } catch (finishError) {
+              console.error(`❌ Suite 종료 중 오류 (${nestedSuite.title || 'Unknown'}):`, finishError.message);
+              // Suite 종료 실패해도 계속 진행
+            }
           }
         } else if (suite.specs && Array.isArray(suite.specs)) {
           // 직접 specs가 있는 경우
@@ -340,9 +364,14 @@ async function uploadToReportPortal() {
 
     // Launch 종료
     const finalStatus = failedTests > 0 ? 'FAILED' : 'PASSED';
-    await client.finishLaunch(launchId, {
-      status: finalStatus
-    });
+    try {
+      await client.finishLaunch(launchId, {
+        status: finalStatus
+      });
+    } catch (finishError) {
+      console.error('❌ Launch 종료 중 오류:', finishError.message);
+      throw finishError; // Launch 종료 실패는 치명적이므로 재throw
+    }
 
     console.log('\n📊 업로드 완료!');
     console.log(`   총 테스트: ${totalTests}`);
