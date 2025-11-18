@@ -12,8 +12,10 @@
 
 ```
 [GitHub Webhook] ──┐
-                    ├──→ [IF 조건] ──→ [Execute Command: npm run test:sanity]
-[Manual Webhook] ───┘
+                    ├──→ [IF 조건] ──→ [Slack 알림: GitHub 푸시 알림]
+[Manual Webhook] ───┘              (테스트 실행 없음)
+                    │
+                    └──→ [IF 조건: Manual Test] ──→ [Execute Command: npm run test:sanity]
                                               ↓
                                     [Code: result.json 파싱]
                                     (testRun + testCases 배열 반환)
@@ -25,13 +27,13 @@
                                     Mode: Run Once for All Items
                                     (testCases 배열 + run_id 결합)
                                               ↓
-                                    [Split In Batches]
+                                    [Loop Over Items]
                                     (Batch Size: 1)
                                               ↓
                                     [PostgreSQL: test_cases 저장]
                                     (각 testCase 개별 INSERT)
                                               ↓
-                                    [Slack 알림]
+                                    [Slack 알림: 테스트 결과]
 ```
 
 ## 단계별 설정
@@ -41,23 +43,37 @@
 **GitHub Webhook:**
 - Path: `github-webhook`
 - HTTP Method: `POST`
+- **Respond**: `Immediately` (또는 "Using 'Respond to Webhook' Node" 선택 시 워크플로우 끝에 "Respond to Webhook" 노드 추가 필요)
 
 **Manual Webhook:**
 - Path: `manual-test`
 - HTTP Method: `POST`
+- **Respond**: `Immediately` (또는 "Using 'Respond to Webhook' Node" 선택 시 워크플로우 끝에 "Respond to Webhook" 노드 추가 필요)
 
-### 2. IF 조건 노드
+### 2. IF 조건 노드 (Manual Test 확인)
 
-- 조건 1: `{{ $json.headers['x-github-event'] }}` `exists`
-- OR
-- 조건 2: `{{ $json.body.trigger }}` `is equal to` `manual`
+**설정:**
+- 조건: `{{ $json.body.trigger }}` `is equal to` `manual`
 
-### 3. Execute Command 노드 (테스트 실행)
+**동작:**
+- Manual Test인 경우: `true` 출력 → 테스트 실행
+- GitHub Webhook인 경우: `false` 출력 → 테스트 실행 스킵 (GitHub 푸시 알림만)
 
-- **Command**: `npm run test:sanity` (Expression 모드)
-- **Working Directory**: `D:\test_automation`
+**중요:** 
+- `true` 출력: Execute Command 노드(테스트 실행)에 연결
+- `false` 출력: Slack 노드에 연결하여 GitHub 푸시 알림만 전송 (선택사항)
 
-### 4. Code 노드 (result.json 파싱 및 DB 저장 준비)
+### 4. Execute Command 노드 (테스트 실행)
+
+- **Command**: `npm run test:sanity`
+- **Working Directory**: `/workspace` (docker-compose.yml에서 마운트된 경로)
+
+**중요:**
+- n8n 컨테이너 내부에서 실행되므로 Linux 경로(`/workspace`)를 사용합니다.
+- `docker-compose.yml`에서 프로젝트 디렉토리가 `/workspace`로 마운트되어 있습니다.
+- n8n 컨테이너를 재시작해야 볼륨 마운트가 적용됩니다: `docker-compose restart n8n`
+
+### 5. Code 노드 (result.json 파싱 및 DB 저장 준비)
 
 **설정:**
 
@@ -65,8 +81,8 @@
 const fs = require('fs');
 const path = require('path');
 
-// result.json 읽기
-const resultsPath = path.join('D:\\test_automation', 'test-results', 'results.json');
+// result.json 읽기 (n8n 컨테이너 내부 경로 사용)
+const resultsPath = path.join('/workspace', 'test-results', 'results.json');
 const results = JSON.parse(fs.readFileSync(resultsPath, 'utf-8'));
 
 // 실행 정보 계산
@@ -163,7 +179,7 @@ return {
 };
 ```
 
-### 5. PostgreSQL 노드 (test_runs 저장)
+### 6. PostgreSQL 노드 (test_runs 저장)
 
 **설정:**
 
@@ -384,7 +400,7 @@ $13: {{ $json.attachments }}
 - Expression 모드가 활성화되면 파라미터 필드가 파란색으로 표시됩니다.
 - `run_id`는 두 번째 Code 노드에서 이미 각 testCase에 추가되었으므로 `{{ $json.run_id }}`로 접근할 수 있습니다.
 
-### 9. Slack 노드 (알림)
+### 10. Slack 노드 (테스트 결과 알림)
 
 **설정:**
 
