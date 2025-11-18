@@ -25,13 +25,10 @@
                                               ↓
                                     [Code: run_id를 testCases에 추가]
                                     Mode: Run Once for All Items
-                                    (testCases 배열 + run_id 결합)
-                                              ↓
-                                    [Loop Over Items]
-                                    (Batch Size: 1)
+                                    (testCases 배열을 개별 아이템으로 변환)
                                               ↓
                                     [PostgreSQL: test_cases 저장]
-                                    (각 testCase 개별 INSERT)
+                                    (n8n이 자동으로 각 testCase에 대해 실행)
                                               ↓
                                     [Slack 알림: 테스트 결과]
 ```
@@ -45,10 +42,38 @@
 - HTTP Method: `POST`
 - **Respond**: `Immediately` (또는 "Using 'Respond to Webhook' Node" 선택 시 워크플로우 끝에 "Respond to Webhook" 노드 추가 필요)
 
+**GitHub Webhook 설정:**
+- GitHub 저장소 → Settings → Webhooks → Add webhook
+- Payload URL: `http://YOUR_SERVER_IP:5678/webhook/github-webhook`
+- Content type: `application/json`
+- Events: `Just the push event` (또는 원하는 이벤트 선택)
+- Secret: (선택사항) Signature Secret 설정 가능
+
+**참고:**
+- GitHub Webhook은 GitHub에서 자동으로 전송하는 이벤트이므로 별도의 body 설정이 필요 없습니다.
+- GitHub가 push 이벤트 발생 시 자동으로 POST 요청을 보냅니다.
+- IF 조건 노드에서 `body.trigger !== 'manual'`이므로 테스트는 실행되지 않고 알림만 전송됩니다.
+
 **Manual Webhook:**
 - Path: `manual-test`
 - HTTP Method: `POST`
 - **Respond**: `Immediately` (또는 "Using 'Respond to Webhook' Node" 선택 시 워크플로우 끝에 "Respond to Webhook" 노드 추가 필요)
+
+**Manual Webhook Body 예시 (cURL 또는 HTTP 요청 시):**
+```json
+{
+  "trigger": "manual",
+  "build_number": "test-001",
+  "git_commit": "abc123",
+  "test_type": "sanity"
+}
+```
+
+**필수 필드:**
+- `trigger`: 반드시 `"manual"`로 설정 (IF 조건 노드에서 이 값을 확인)
+- `build_number`: 빌드 번호 (예: "test-001", "local")
+- `git_commit`: Git 커밋 해시 (예: "abc123", "local")
+- `test_type`: 테스트 타입 (예: "sanity", "regression", "functional")
 
 ### 2. IF 조건 노드 (Manual Test 확인)
 
@@ -63,17 +88,23 @@
 - `true` 출력: Execute Command 노드(테스트 실행)에 연결
 - `false` 출력: Slack 노드에 연결하여 GitHub 푸시 알림만 전송 (선택사항)
 
-### 4. Execute Command 노드 (테스트 실행)
+### 3. Execute Command 노드 (테스트 실행)
 
+**방법 1: Working Directory 설정 (권장)**
 - **Command**: `npm run test:sanity`
-- **Working Directory**: `/workspace` (docker-compose.yml에서 마운트된 경로)
+- **Working Directory**: `/workspace` (직접 입력, Expression 모드 비활성화)
+
+**방법 2: Command에 경로 포함**
+- **Command**: `cd /workspace && npm run test:sanity`
+- **Working Directory**: (비워두거나 `/home/node` 유지)
 
 **중요:**
 - n8n 컨테이너 내부에서 실행되므로 Linux 경로(`/workspace`)를 사용합니다.
 - `docker-compose.yml`에서 프로젝트 디렉토리가 `/workspace`로 마운트되어 있습니다.
-- n8n 컨테이너를 재시작해야 볼륨 마운트가 적용됩니다: `docker-compose restart n8n`
+- Working Directory 필드에 `/workspace`를 입력할 때 Expression 모드(`fx` 버튼)가 꺼져 있어야 합니다.
+- 만약 `/home/node/package.json` 에러가 발생하면, n8n 컨테이너를 재시작하세요: `docker-compose restart n8n`
 
-### 5. Code 노드 (result.json 파싱 및 DB 저장 준비)
+### 4. Code 노드 (result.json 파싱 및 DB 저장 준비)
 
 **설정:**
 
@@ -110,22 +141,25 @@ if (isGitHubWebhook) {
   testType = webhookBody.test_type || 'sanity';
 }
 
-// test_runs 테이블 데이터
+// test_runs 테이블 데이터 (스키마에 맞게 수정)
+const runId = `run-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+const status = results.stats.failed > 0 ? 'FAILED' : (results.stats.skipped > 0 ? 'SKIPPED' : 'PASSED');
+
 const testRunData = {
-  build_number: buildNumber,
-  git_commit: gitCommit,
+  run_id: runId,
   test_type: testType,
-  start_time: startTime.toISOString(),
-  end_time: endTime.toISOString(),
-  duration_ms: durationMs,
+  environment: 'local', // 또는 'CI'
+  browser: 'chromium',
+  started_at: startTime.toISOString(),
+  finished_at: endTime.toISOString(),
+  status: status,
   total_tests: results.stats.total,
   passed_tests: results.stats.passed,
   failed_tests: results.stats.failed,
   skipped_tests: results.stats.skipped,
-  broken_tests: 0,
-  product_bug_tests: 0,
-  automation_bug_tests: 0,
-  link_to_report: null
+  duration_ms: durationMs,
+  build_number: buildNumber,
+  commit_hash: gitCommit
 };
 
 // test_cases 배열 준비 (타입 명시 - JSDoc 사용)
@@ -141,10 +175,13 @@ if (results.suites && Array.isArray(results.suites)) {
             if (test.results && Array.isArray(test.results)) {
               const finalResult = test.results[test.results.length - 1];
               if (finalResult) {
+                // status를 대문자로 변환 (스키마 요구사항: PASSED, FAILED, SKIPPED, BROKEN)
+                const status = finalResult.status ? finalResult.status.toUpperCase() : 'UNKNOWN';
+                
                 testCases.push({
                   suite_name: suite.title || 'Unknown Suite',
                   test_name: test.title || 'Unknown Test',
-                  status: finalResult.status || 'unknown',
+                  status: status,
                   duration_ms: finalResult.duration || 0,
                   error_message: finalResult.error?.message || null,
                   stack_trace: finalResult.error?.stack || null,
@@ -179,41 +216,41 @@ return {
 };
 ```
 
-### 6. PostgreSQL 노드 (test_runs 저장)
+### 5. PostgreSQL 노드 (test_runs 저장)
 
 **설정:**
 
 - **Operation**: `Execute Query`
 - **Query**:
   ```sql
-  INSERT INTO test_runs (build_number, git_commit, test_type, start_time, end_time, duration_ms, total_tests, passed_tests, failed_tests, skipped_tests, broken_tests, product_bug_tests, automation_bug_tests, link_to_report)
+  INSERT INTO test_runs (run_id, test_type, environment, browser, started_at, finished_at, status, total_tests, passed_tests, failed_tests, skipped_tests, duration_ms, build_number, commit_hash)
   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-  RETURNING run_id;
+  RETURNING id;
   ```
 - **Parameters**: Expression 모드(`fx` 버튼)로 각 파라미터 매핑
 
 **복사-붙여넣기용 Parameters:**
 
 ```
-$1: {{ $json.testRun.build_number }}
-$2: {{ $json.testRun.git_commit }}
-$3: {{ $json.testRun.test_type }}
-$4: {{ $json.testRun.start_time }}
-$5: {{ $json.testRun.end_time }}
-$6: {{ $json.testRun.duration_ms }}
-$7: {{ $json.testRun.total_tests }}
-$8: {{ $json.testRun.passed_tests }}
-$9: {{ $json.testRun.failed_tests }}
-$10: {{ $json.testRun.skipped_tests }}
-$11: {{ $json.testRun.broken_tests }}
-$12: {{ $json.testRun.product_bug_tests }}
-$13: {{ $json.testRun.automation_bug_tests }}
-$14: {{ $json.testRun.link_to_report }}
+$1: {{ $json.testRun.run_id }}
+$2: {{ $json.testRun.test_type }}
+$3: {{ $json.testRun.environment }}
+$4: {{ $json.testRun.browser }}
+$5: {{ $json.testRun.started_at }}
+$6: {{ $json.testRun.finished_at }}
+$7: {{ $json.testRun.status }}
+$8: {{ $json.testRun.total_tests }}
+$9: {{ $json.testRun.passed_tests }}
+$10: {{ $json.testRun.failed_tests }}
+$11: {{ $json.testRun.skipped_tests }}
+$12: {{ $json.testRun.duration_ms }}
+$13: {{ $json.testRun.build_number }}
+$14: {{ $json.testRun.commit_hash }}
 ```
 
-**출력:** `{ run_id: 123 }` 형태로 반환됩니다.
+**출력:** `{ id: 123 }` 형태로 반환됩니다. (test_runs 테이블의 PRIMARY KEY인 `id` 반환)
 
-### 6. Code 노드 (run_id를 testCases에 추가)
+### 6. Code 노드 (test_run_id를 testCases에 추가)
 
 **설정:**
 
@@ -228,18 +265,18 @@ $14: {{ $json.testRun.link_to_report }}
   const firstCodeOutput = items.find(item => item.json && item.json.testCases) || items[0];
   const testCases = firstCodeOutput?.json?.testCases || [];
   
-  // PostgreSQL 노드의 출력 찾기 (run_id 포함)
-  const postgresOutput = items.find(item => item.json && item.json.run_id);
-  const runId = postgresOutput?.json?.run_id;
+  // PostgreSQL 노드의 출력 찾기 (id 포함 - test_runs 테이블의 PRIMARY KEY)
+  const postgresOutput = items.find(item => item.json && item.json.id);
+  const testRunId = postgresOutput?.json?.id; // test_runs 테이블의 id (test_run_id로 사용)
   
-  if (!runId) {
-    throw new Error('run_id를 찾을 수 없습니다.');
+  if (!testRunId) {
+    throw new Error('test_runs의 id를 찾을 수 없습니다.');
   }
   
-  // 각 testCase에 run_id 추가
+  // 각 testCase에 test_run_id 추가 (test_cases 테이블의 외래키)
   const testCasesWithRunId = testCases.map(testCase => ({
     ...testCase,
-    run_id: runId
+    test_run_id: testRunId
   }));
   
   // 각 testCase를 개별 아이템으로 반환
@@ -252,155 +289,47 @@ $14: {{ $json.testRun.link_to_report }}
 - 이 노드의 **Mode**를 반드시 `Run Once for All Items`로 설정해야 합니다.
 - Settings 탭에서 "Run Once for Each Item"을 체크 해제하고 "Run Once for All Items"를 선택하세요.
 
-### 7. Loop Over Items 노드 (또는 Split In Batches 노드)
+**참고:** 
+- Code 노드에서 이미 각 testCase를 개별 아이템으로 반환했으므로, **Loop Over Items 노드는 필요 없습니다!**
+- n8n이 자동으로 각 아이템에 대해 다음 PostgreSQL 노드를 실행합니다.
 
-**방법 1: Loop Over Items 노드 사용**
-
-**설정:**
-- **Field to Split Out**: `json` (또는 비워두기 - 기본값)
-- **Options**: 기본값 사용
-
-**동작:** Code 노드에서 반환된 testCases 배열의 각 요소를 개별 아이템으로 분리합니다.
-
-**방법 2: Split In Batches 노드 사용**
-
-**설정:**
-- **Batch Size**: `1`
-- **Options**: 기본값 사용
-
-**동작:** Code 노드에서 반환된 testCases 배열을 각각 개별 아이템으로 분리합니다.
-
-**참고:** 두 방법 모두 동일하게 동작하지만, Loop Over Items가 더 직관적입니다.
-
-### 8. PostgreSQL 노드 (test_cases 저장)
+### 7. PostgreSQL 노드 (test_cases 저장)
 
 **설정:**
 
 - **Operation**: `Execute Query`
 - **Query**:
   ```sql
-  INSERT INTO test_runs (build_number, git_commit, test_type, start_time, end_time, duration_ms, total_tests, passed_tests, failed_tests, skipped_tests, broken_tests, product_bug_tests, automation_bug_tests, link_to_report)
-  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-  RETURNING run_id;
+  INSERT INTO test_cases (test_run_id, suite_name, test_name, test_full_name, status, duration_ms, error_message, error_stack, attachments, steps)
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
   ```
 - **Parameters**: Expression 모드(`fx` 버튼)로 각 파라미터 매핑
 
 **복사-붙여넣기용 Parameters:**
 
 ```
-$1: {{ $json.testRun.build_number }}
-$2: {{ $json.testRun.git_commit }}
-$3: {{ $json.testRun.test_type }}
-$4: {{ $json.testRun.start_time }}
-$5: {{ $json.testRun.end_time }}
-$6: {{ $json.testRun.duration_ms }}
-$7: {{ $json.testRun.total_tests }}
-$8: {{ $json.testRun.passed_tests }}
-$9: {{ $json.testRun.failed_tests }}
-$10: {{ $json.testRun.skipped_tests }}
-$11: {{ $json.testRun.broken_tests }}
-$12: {{ $json.testRun.product_bug_tests }}
-$13: {{ $json.testRun.automation_bug_tests }}
-$14: {{ $json.testRun.link_to_report }}
-```
-
-**출력:** `{ run_id: 123 }` 형태로 반환됩니다.
-
-### 6. Code 노드 (run_id를 testCases에 추가)
-
-**설정:**
-
-- **Language**: `JavaScript`
-- **Mode**: `Run Once for All Items` 선택 (중요!)
-- **Code**:
-  ```javascript
-  // 모든 입력 아이템 가져오기
-  const items = $input.all();
-  
-  // 첫 번째 Code 노드의 출력 찾기 (testCases 포함)
-  const firstCodeOutput = items.find(item => item.json && item.json.testCases) || items[0];
-  const testCases = firstCodeOutput?.json?.testCases || [];
-  
-  // PostgreSQL 노드의 출력 찾기 (run_id 포함)
-  const postgresOutput = items.find(item => item.json && item.json.run_id);
-  const runId = postgresOutput?.json?.run_id;
-  
-  if (!runId) {
-    throw new Error('run_id를 찾을 수 없습니다.');
-  }
-  
-  // 각 testCase에 run_id 추가
-  const testCasesWithRunId = testCases.map(testCase => ({
-    ...testCase,
-    run_id: runId
-  }));
-  
-  // 각 testCase를 개별 아이템으로 반환
-  return testCasesWithRunId.map(testCase => ({
-    json: testCase
-  }));
-  ```
-
-**중요:** 
-- 이 노드의 **Mode**를 반드시 `Run Once for All Items`로 설정해야 합니다.
-- Settings 탭에서 "Run Once for Each Item"을 체크 해제하고 "Run Once for All Items"를 선택하세요.
-
-### 7. Loop Over Items 노드 (또는 Split In Batches 노드)
-
-**방법 1: Loop Over Items 노드 사용**
-
-**설정:**
-- **Field to Split Out**: `json` (또는 비워두기 - 기본값)
-- **Options**: 기본값 사용
-
-**동작:** Code 노드에서 반환된 testCases 배열의 각 요소를 개별 아이템으로 분리합니다.
-
-**방법 2: Split In Batches 노드 사용**
-
-**설정:**
-- **Batch Size**: `1`
-- **Options**: 기본값 사용
-
-**동작:** Code 노드에서 반환된 testCases 배열을 각각 개별 아이템으로 분리합니다.
-
-**참고:** 두 방법 모두 동일하게 동작하지만, Loop Over Items가 더 직관적입니다.
-
-### 8. PostgreSQL 노드 (test_cases 저장)
-
-**설정:**
-
-- **Operation**: `Execute Query`
-- **Query**:
-  ```sql
-  INSERT INTO test_cases (run_id, suite_name, test_name, status, duration_ms, error_message, stack_trace, start_time, end_time, severity, owner, tags, attachments)
-  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13);
-  ```
-- **Parameters**: Expression 모드(`fx` 버튼)로 각 파라미터 매핑
-
-**복사-붙여넣기용 Parameters:**
-
-```
-$1: {{ $json.run_id }}
+$1: {{ $json.test_run_id }}
 $2: {{ $json.suite_name }}
 $3: {{ $json.test_name }}
-$4: {{ $json.status }}
-$5: {{ $json.duration_ms }}
-$6: {{ $json.error_message }}
-$7: {{ $json.stack_trace }}
-$8: {{ $json.start_time }}
-$9: {{ $json.end_time }}
-$10: {{ $json.severity }}
-$11: {{ $json.owner }}
-$12: {{ $json.tags ? JSON.stringify($json.tags) : null }}
-$13: {{ $json.attachments }}
+$4: {{ $json.test_name }}
+$5: {{ $json.status }}
+$6: {{ $json.duration_ms }}
+$7: {{ $json.error_message }}
+$8: {{ $json.stack_trace }}
+$9: {{ $json.attachments ? JSON.stringify($json.attachments) : null }}
+$10: null
 ```
 
 **중요:** 
 - "replace me" 텍스트가 보이면 반드시 `fx` 버튼을 클릭하여 Expression 모드를 활성화한 후 위의 표현식을 입력하세요.
 - Expression 모드가 활성화되면 파라미터 필드가 파란색으로 표시됩니다.
-- `run_id`는 두 번째 Code 노드에서 이미 각 testCase에 추가되었으므로 `{{ $json.run_id }}`로 접근할 수 있습니다.
+- `test_run_id`는 두 번째 Code 노드에서 이미 각 testCase에 추가되었으므로 `{{ $json.test_run_id }}`로 접근할 수 있습니다.
+- `$4` (test_full_name): test_name과 동일하게 설정 (스키마 요구사항)
+- `$5` (status): 'PASSED', 'FAILED', 'SKIPPED', 'BROKEN' 중 하나
+- `$9` (attachments): JSONB 타입이므로 JSON.stringify 필요
+- `$10` (steps): 현재 null로 설정 (필요시 Code 노드에서 추가)
 
-### 10. Slack 노드 (테스트 결과 알림)
+### 8. Slack 노드 (테스트 결과 알림)
 
 **설정:**
 
@@ -454,15 +383,12 @@ n8n에서 간단한 대시보드 워크플로우를 만들어서:
                                               ↓
                                     [Code: run_id를 testCases에 추가]
                                     입력: 이전 Code 노드의 testCases + run_id
-                                    출력: [{ run_id: 123, suite_name: "...", ... }, ...]
-                                              ↓
-                                    [Split In Batches]
-                                    Batch Size: 1
-                                    출력: 각 testCase가 개별 아이템으로 분리
+                                    출력: [{ test_run_id: 123, suite_name: "...", ... }, ...]
+                                    (n8n이 자동으로 각 testCase에 대해 다음 노드 실행)
                                               ↓
                                     [PostgreSQL: test_cases 저장]
-                                    입력: 각 testCase (run_id 포함)
-                                    각 testCase마다 개별 INSERT 실행
+                                    입력: 각 testCase (test_run_id 포함)
+                                    n8n이 자동으로 각 testCase마다 개별 INSERT 실행
                                               ↓
                                     [Slack 알림]
                                     입력: 첫 번째 Code 노드의 통계 데이터

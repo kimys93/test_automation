@@ -23,6 +23,7 @@ services:
   n8n:
     image: n8nio/n8n
     container_name: test-automation-n8n
+    user: "0:0"  # root 사용자로 실행 (파일 권한 문제 해결)
     ports:
       - "5678:5678"
     environment:
@@ -32,6 +33,7 @@ services:
       - N8N_HOST=localhost
       - N8N_PORT=5678
       - N8N_PROTOCOL=http
+      - N8N_USER_FOLDER=/home/node/.n8n  # 데이터 디렉토리 명시
     volumes:
       - n8n_data:/home/node/.n8n
       - .:/workspace  # 프로젝트 디렉토리 마운트
