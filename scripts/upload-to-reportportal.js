@@ -201,10 +201,10 @@ async function uploadToReportPortal() {
           }
         }
 
-        // 테스트 아이템 시작
+        // 테스트 아이템 시작 (SUITE 타입으로 변경하여 Suite name 검색 가능하도록)
         const startTestItemParams = {
           name: stepTitle || 'Unnamed Step',
-          type: 'TEST',
+          type: 'SUITE',
           description: stepTitle || 'Unnamed Step',
           hasStats: true
         };
@@ -229,54 +229,68 @@ async function uploadToReportPortal() {
           throw new Error('Test Item ID를 가져올 수 없습니다.');
         }
 
-        // 테스트 시작 로그 추가 (항상 추가하여 'No results found' 방지)
-        await client.sendLog(testItemId, {
-          level: 'INFO',
-          message: `테스트 시작: ${stepTitle}`
-        });
+        // SUITE 내부에 실제 TEST 아이템 추가 (ReportPortal 구조 완성)
+        const innerTestItemInfo = await client.startTestItem({
+          name: `${stepTitle} - 실행`,
+          type: 'TEST',
+          description: `${stepTitle} 테스트 실행`,
+          hasStats: true
+        }, launchId, testItemId);
 
-        // 에러 로그 추가
-        if (depth2StepHasError) {
-          const errorMessage = depth2Step.error?.message || 
-                              (result.errors && result.errors[0]?.message) || 
-                              'Test failed';
-          await client.sendLog(testItemId, {
-            level: 'ERROR',
-            message: `테스트 실패: ${errorMessage}`
-          });
-        } else {
-          // 성공한 경우에도 성공 로그 추가
-          await client.sendLog(testItemId, {
+        const innerTestItemId = typeof innerTestItemInfo === 'string' 
+          ? innerTestItemInfo 
+          : (innerTestItemInfo?.tempId || innerTestItemInfo?.id || innerTestItemInfo);
+
+        if (innerTestItemId) {
+          // 테스트 시작 로그 추가
+          await client.sendLog(innerTestItemId, {
             level: 'INFO',
-            message: `테스트 통과: ${stepTitle}`
+            message: `테스트 시작: ${stepTitle}`
           });
-        }
 
-        // depth2 step의 하위 step들(depth3 이상)을 로그로 처리
-        if (depth2Step.steps && Array.isArray(depth2Step.steps)) {
-          await processStepsAsLogs(depth2Step.steps, testItemId);
-        } else {
-          // 하위 step이 없어도 최소한의 정보 로그 추가
-          await client.sendLog(testItemId, {
-            level: 'INFO',
-            message: `상태: ${status}`
-          });
-        }
+          // 에러 로그 추가
+          if (depth2StepHasError) {
+            const errorMessage = depth2Step.error?.message || 
+                                (result.errors && result.errors[0]?.message) || 
+                                'Test failed';
+            await client.sendLog(innerTestItemId, {
+              level: 'ERROR',
+              message: `테스트 실패: ${errorMessage}`
+            });
+          } else {
+            // 성공한 경우에도 성공 로그 추가
+            await client.sendLog(innerTestItemId, {
+              level: 'INFO',
+              message: `테스트 통과: ${stepTitle}`
+            });
+          }
 
-        // 테스트 아이템 종료 (모든 로그가 완료된 후)
-        try {
-          const finishParams = {
-            status: status
-          };
-          
-          if (status === 'FAILED') {
-            finishParams.issue = {
+          // depth2 step의 하위 step들(depth3 이상)을 로그로 처리
+          if (depth2Step.steps && Array.isArray(depth2Step.steps)) {
+            await processStepsAsLogs(depth2Step.steps, innerTestItemId);
+          } else {
+            // 하위 step이 없어도 최소한의 정보 로그 추가
+            await client.sendLog(innerTestItemId, {
+              level: 'INFO',
+              message: `상태: ${status}`
+            });
+          }
+
+          // 내부 TEST 아이템 종료
+          await client.finishTestItem(innerTestItemId, {
+            status: status,
+            issue: status === 'FAILED' ? {
               issueType: 'PRODUCT_BUG',
               comment: depth2Step.error?.message || 'Test failed'
-            };
-          }
-          
-          await client.finishTestItem(testItemId, finishParams);
+            } : undefined
+          });
+        }
+
+        // SUITE 아이템 종료 (내부 TEST가 완료된 후)
+        try {
+          await client.finishTestItem(testItemId, {
+            status: status
+          });
         } catch (finishError) {
           console.error(`❌ Test Item 종료 중 오류 (${stepTitle}):`, finishError.message);
           // 개별 테스트 아이템 종료 실패해도 계속 진행
