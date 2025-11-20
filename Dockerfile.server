@@ -60,11 +60,28 @@ echo "listen_addresses = '\''*'\''" >> /etc/postgresql/15/main/postgresql.conf\n
 \n\
 # PostgreSQL 시작\n\
 service postgresql start\n\
-sleep 2\n\
+sleep 5\n\
 \n\
-# PostgreSQL 사용자 및 DB 설정\n\
+# PostgreSQL이 완전히 시작될 때까지 대기\n\
+until sudo -u postgres pg_isready -U postgres; do\n\
+    echo "Waiting for PostgreSQL to start..."\n\
+    sleep 1\n\
+done\n\
+\n\
+# PostgreSQL 사용자 비밀번호 설정 (강제 재설정)\n\
+echo "Setting PostgreSQL password..."\n\
 sudo -u postgres psql -c "ALTER USER postgres WITH PASSWORD '\''${POSTGRES_PASSWORD:-postgres}'\'';" || true\n\
-sudo -u postgres createdb ${POSTGRES_DB:-test_automation} || true\n\
+\n\
+# DB 생성\n\
+sudo -u postgres createdb ${POSTGRES_DB:-test_automation} 2>&1 || echo "Database may already exist"\n\
+\n\
+# 비밀번호 확인 (환경 변수로)\n\
+export PGPASSWORD=${POSTGRES_PASSWORD:-postgres}\n\
+if psql -h localhost -U postgres -d ${POSTGRES_DB:-test_automation} -c "SELECT 1;" > /dev/null 2>&1; then\n\
+    echo "✅ PostgreSQL password verified"\n\
+else\n\
+    echo "⚠️ PostgreSQL password verification failed, but continuing..."\n\
+fi\n\
 \n\
 # DB 초기화 (스키마 파일이 있으면 실행)\n\
 if [ -f /workspace/database/schema.sql ]; then\n\
