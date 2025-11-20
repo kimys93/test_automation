@@ -39,16 +39,20 @@ async function saveResultsToDB() {
   }
 
   // DB 연결 설정
-  const pool = new Pool({
-    host: process.env.DB_HOST || 'localhost',
-    port: parseInt(process.env.DB_PORT || '5432'),
-    database: process.env.DB_NAME || 'test_automation',
-    user: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD || 'postgres',
+  const dbConfig = {
+    host: process.env.DB_HOST,
+    port: process.env.DB_PORT ? parseInt(process.env.DB_PORT, 10) : 5432,
+    database: process.env.DB_NAME,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
     max: 20,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000, // 10초로 증가
-  });
+  };
+  
+  console.log(`🔌 DB 연결 정보: ${dbConfig.host}:${dbConfig.port}/${dbConfig.database} (user: ${dbConfig.user})`);
+  
+  const pool = new Pool(dbConfig);
 
   try {
     // DB 연결 테스트 (재시도 로직 포함)
@@ -201,6 +205,14 @@ async function saveResultsToDB() {
 
     const testRunId = runResult.rows[0].id;
     console.log(`✅ test_runs 저장 완료 (id: ${testRunId}, run_id: ${runId})`);
+    
+    // 실제로 저장되었는지 확인
+    const verifyResult = await pool.query('SELECT id, run_id FROM test_runs WHERE id = $1', [testRunId]);
+    if (verifyResult.rows.length > 0) {
+      console.log(`✅ 저장 확인됨: ${JSON.stringify(verifyResult.rows[0])}`);
+    } else {
+      console.error(`❌ 저장 확인 실패: id ${testRunId}를 찾을 수 없습니다!`);
+    }
 
     // test_cases 테이블에 저장
     const testCases = [];
