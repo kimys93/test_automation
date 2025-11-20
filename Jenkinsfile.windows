@@ -41,14 +41,46 @@ pipeline {
                     
                     if (serverRunning == 0) {
                         echo '✅ 통합 서버가 이미 실행 중입니다.'
+                        // 기존 서버가 실행 중이어도 스키마 확인
+                        echo '🔍 DB 스키마 확인 중...'
+                        try {
+                            def schemaCheck = bat(
+                                script: 'docker exec test-automation-server bash -c "export PGPASSWORD=postgres && psql -h localhost -U postgres -d test_automation -t -c \\"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = \\''public\\'';\\""',
+                                returnStatus: true
+                            )
+                            if (schemaCheck != 0) {
+                                echo '⚠️ 스키마가 없습니다. 스키마 초기화 중...'
+                                bat 'docker exec test-automation-server bash -c "export PGPASSWORD=postgres && psql -h localhost -U postgres -d test_automation -f /workspace/database/schema.sql"'
+                                echo '✅ 스키마 초기화 완료'
+                            } else {
+                                echo '✅ 스키마 확인 완료'
+                            }
+                        } catch (Exception e) {
+                            echo "⚠️ 스키마 확인 중 오류: ${e.message}"
+                        }
                     } else {
                         echo '🚀 통합 서버 시작 중...'
                         try {
-                            // docker-compose로 통합 서버 시작
-                            bat 'docker-compose up -d server'
-                            // 서버가 준비될 때까지 대기
-                            bat 'timeout /t 15 /nobreak'
+                            // docker-compose로 통합 서버 시작 (재빌드 포함)
+                            bat 'docker-compose up -d --build server'
+                            // 서버가 준비될 때까지 대기 (PostgreSQL 초기화 시간 고려)
+                            bat 'timeout /t 20 /nobreak'
                             echo '✅ 통합 서버 시작 완료'
+                            
+                            // 스키마가 제대로 초기화되었는지 확인
+                            echo '🔍 DB 스키마 확인 중...'
+                            bat 'timeout /t 5 /nobreak'
+                            def tableCount = bat(
+                                script: 'docker exec test-automation-server bash -c "export PGPASSWORD=postgres && psql -h localhost -U postgres -d test_automation -t -c \\"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = \\''public\\'';\\""',
+                                returnStatus: true
+                            )
+                            if (tableCount != 0) {
+                                echo '⚠️ 스키마가 없습니다. 스키마 초기화 중...'
+                                bat 'docker exec test-automation-server bash -c "export PGPASSWORD=postgres && psql -h localhost -U postgres -d test_automation -f /workspace/database/schema.sql"'
+                                echo '✅ 스키마 초기화 완료'
+                            } else {
+                                echo '✅ 스키마 확인 완료'
+                            }
                         } catch (Exception e) {
                             echo "⚠️ 통합 서버 시작 중 오류 발생: ${e.message}"
                             echo "⚠️ 기존 서버를 사용합니다 (DB_HOST 환경 변수 확인 필요)"

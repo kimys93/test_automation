@@ -28,6 +28,67 @@ pipeline {
             }
         }
         
+        stage('Start Server') {
+            steps {
+                script {
+                    echo '🐘 통합 서버(PostgreSQL + Allure) 컨테이너 상태 확인 중...'
+                    // 통합 서버 컨테이너가 실행 중인지 확인
+                    def serverRunning = sh(
+                        script: 'docker ps --filter "name=test-automation-server" --filter "status=running" --format "{{.Names}}" | grep -q "test-automation-server" && exit 0 || exit 1',
+                        returnStatus: true
+                    )
+                    
+                    if (serverRunning == 0) {
+                        echo '✅ 통합 서버가 이미 실행 중입니다.'
+                        // 기존 서버가 실행 중이어도 스키마 확인
+                        echo '🔍 DB 스키마 확인 중...'
+                        try {
+                            def schemaCheck = sh(
+                                script: 'docker exec test-automation-server bash -c "export PGPASSWORD=postgres && psql -h localhost -U postgres -d test_automation -t -c \\"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = \\''public\\'';\\""',
+                                returnStatus: true
+                            )
+                            if (schemaCheck != 0) {
+                                echo '⚠️ 스키마가 없습니다. 스키마 초기화 중...'
+                                sh 'docker exec test-automation-server bash -c "export PGPASSWORD=postgres && psql -h localhost -U postgres -d test_automation -f /workspace/database/schema.sql"'
+                                echo '✅ 스키마 초기화 완료'
+                            } else {
+                                echo '✅ 스키마 확인 완료'
+                            }
+                        } catch (Exception e) {
+                            echo "⚠️ 스키마 확인 중 오류: ${e.message}"
+                        }
+                    } else {
+                        echo '🚀 통합 서버 시작 중...'
+                        try {
+                            // docker-compose로 통합 서버 시작 (재빌드 포함)
+                            sh 'docker-compose up -d --build server'
+                            // 서버가 준비될 때까지 대기 (PostgreSQL 초기화 시간 고려)
+                            sh 'sleep 20'
+                            echo '✅ 통합 서버 시작 완료'
+                            
+                            // 스키마가 제대로 초기화되었는지 확인
+                            echo '🔍 DB 스키마 확인 중...'
+                            sh 'sleep 5'
+                            def tableCount = sh(
+                                script: 'docker exec test-automation-server bash -c "export PGPASSWORD=postgres && psql -h localhost -U postgres -d test_automation -t -c \\"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = \\''public\\'';\\""',
+                                returnStatus: true
+                            )
+                            if (tableCount != 0) {
+                                echo '⚠️ 스키마가 없습니다. 스키마 초기화 중...'
+                                sh 'docker exec test-automation-server bash -c "export PGPASSWORD=postgres && psql -h localhost -U postgres -d test_automation -f /workspace/database/schema.sql"'
+                                echo '✅ 스키마 초기화 완료'
+                            } else {
+                                echo '✅ 스키마 확인 완료'
+                            }
+                        } catch (Exception e) {
+                            echo "⚠️ 통합 서버 시작 중 오류 발생: ${e.message}"
+                            echo "⚠️ 기존 서버를 사용합니다 (DB_HOST 환경 변수 확인 필요)"
+                        }
+                    }
+                }
+            }
+        }
+        
         stage('Install Dependencies') {
             steps {
                 script {
@@ -109,6 +170,27 @@ pipeline {
                 }
             }
         }
+        
+        stage('Save Test Results to DB') {
+            when {
+                expression { 
+                    return fileExists('allure-results') && env.DB_HOST
+                }
+            }
+            steps {
+                script {
+                    echo '💾 테스트 결과를 DB에 저장 중...'
+                    try {
+                        sh 'npm run allure:save-db'
+                        echo '✅ DB 저장 완료'
+                    } catch (Exception e) {
+                        echo "❌ DB 저장 중 오류 발생: ${e.message}"
+                        // DB 저장 실패해도 빌드는 계속 진행
+                        currentBuild.result = currentBuild.result ?: 'UNSTABLE'
+                    }
+                }
+            }
+        }
     }
     
     post {
@@ -117,12 +199,23 @@ pipeline {
                 if (fileExists('test-results/results.json')) {
                     // results.json을 DB에 저장
                     try {
+                        // pg 패키지 확인
+                        def pgExists = sh(
+                            script: 'test -d node_modules/pg && exit 0 || exit 1',
+                            returnStatus: true
+                        )
+                        if (pgExists != 0) {
+                            echo "⚠️ pg package not found, running npm install..."
+                            sh 'npm install'
+                        }
+                        
+                        // Jenkins에서 설정한 환경 변수 그대로 사용
                         sh '''
-                            export DB_HOST=${DB_HOST:-localhost}
-                            export DB_PORT=${DB_PORT:-5432}
-                            export DB_NAME=${DB_NAME:-test_automation}
-                            export DB_USER=${DB_USER:-postgres}
-                            export DB_PASSWORD=${DB_PASSWORD:-postgres}
+                            export DB_HOST=${DB_HOST}
+                            export DB_PORT=${DB_PORT}
+                            export DB_NAME=${DB_NAME}
+                            export DB_USER=${DB_USER}
+                            export DB_PASSWORD=${DB_PASSWORD}
                             export BUILD_NUMBER=${BUILD_NUMBER}
                             export GIT_COMMIT=${GIT_COMMIT}
                             export TEST_TYPE=${TEST_TYPE:-sanity}
@@ -131,17 +224,23 @@ pipeline {
                         echo "✅ Test results saved to database"
                     } catch (Exception e) {
                         echo "⚠️ Could not save to database: ${e.message}"
+                        echo "⚠️ Make sure PostgreSQL is running and accessible at ${env.DB_HOST ?: 'localhost'}:${env.DB_PORT ?: '5432'}"
                     }
                     
                     // Allure 결과를 영구 저장소에 저장
-                    try {
-                        sh '''
-                            export ALLURE_RESULTS_PERMANENT=${ALLURE_RESULTS_PERMANENT:-./allure-results-permanent}
-                            node scripts/save-allure-results.js
-                        '''
-                        echo "✅ Allure results saved to permanent storage"
-                    } catch (Exception e) {
-                        echo "⚠️ Could not save Allure results: ${e.message}"
+                    if (fileExists('allure-results')) {
+                        try {
+                            sh '''
+                                export ALLURE_RESULTS_PERMANENT=${ALLURE_RESULTS_PERMANENT:-./allure-results-permanent}
+                                node scripts/save-allure-results.js
+                            '''
+                            echo "✅ Allure results saved to permanent storage"
+                        } catch (Exception e) {
+                            echo "⚠️ Could not save Allure results: ${e.message}"
+                            currentBuild.result = currentBuild.result ?: 'UNSTABLE'
+                        }
+                    } else {
+                        echo "⚠️ allure-results directory not found, skipping Allure results permanent storage."
                     }
                     
                     try {
@@ -265,16 +364,10 @@ pipeline {
                         }
                         
                         def testStatus = failedTests > 0 || skippedTests > 0 ? 'Fail' : 'Success'
-                        // 외부 접속을 위해 환경 변수에서 Jenkins URL 가져오기
-                        // Jenkins 시스템 설정에서 JENKINS_URL 환경 변수 설정 필요
-                        def jenkinsBaseUrl = env.JENKINS_URL
-                        if (!jenkinsBaseUrl) {
-                            echo "경고: JENKINS_URL 환경 변수가 설정되지 않았습니다. Jenkins 시스템 설정에서 설정하세요."
-                            // JOB_URL에서 기본 URL 추출 (fallback)
-                            jenkinsBaseUrl = env.JOB_URL ? env.JOB_URL.replaceAll('/job/.*', '') : null
-                        }
-                        def jobName = env.JOB_NAME ?: 'test_automation'
-                        def artifactUrl = "${jenkinsBaseUrl}/job/${jobName}/lastBuild/artifact/playwright-report/index.html"
+                        // Allure 서버 URL 설정
+                        // 환경 변수 ALLURE_SERVER_URL이 설정되어 있으면 사용, 없으면 기본값 사용
+                        def allureServerUrl = env.ALLURE_SERVER_URL ?: 'http://localhost:5050'
+                        def artifactUrl = "${allureServerUrl}"
                         
                         // Pass가 아닌 모든 결과 리스트 메시지 구성
                         def failureListMessage = ""
@@ -283,7 +376,7 @@ pipeline {
                         }
                         
                         def message = """Test Status:
-Total Tests: ${totalTests}, Passed: ${passedTests}, Failed: ${failedTests}, Skipped: ${skippedTests} - (<${artifactUrl}|Open>)
+Total Tests: ${totalTests}, Passed: ${passedTests}, Failed: ${failedTests}, Skipped: ${skippedTests} - (<${artifactUrl}|Allure Report>)
 ${testStatus == 'Success' ? '\n:white_check_mark: Success - 모든 테스트 성공' : '\n:red_circle: Fail - 실패한 케이스 확인 필요'}${failureListMessage}"""
                         
                         slackSend(
