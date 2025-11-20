@@ -62,8 +62,14 @@ async function saveResultsToDB() {
     
     while (retries > 0 && !connected) {
       try {
-        await pool.query('SELECT NOW()');
+        const testResult = await pool.query('SELECT version(), current_database(), inet_server_addr(), inet_server_port()');
         console.log('✅ DB 연결 성공');
+        console.log(`📊 연결된 DB 정보:`, {
+          version: testResult.rows[0].version.split(',')[0],
+          database: testResult.rows[0].current_database,
+          server_addr: testResult.rows[0].inet_server_addr,
+          server_port: testResult.rows[0].inet_server_port
+        });
         connected = true;
       } catch (error) {
         lastError = error;
