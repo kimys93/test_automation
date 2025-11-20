@@ -61,13 +61,9 @@ pipeline {
         stage('Install Dependencies') {
             steps {
                 script {
-                    // node_modules가 없으면 npm install 실행
-                    if (!fileExists('node_modules')) {
-                        echo 'node_modules not found, running npm install...'
-                        bat 'npm install'
-                    } else {
-                        echo 'node_modules already exists, skipping npm install'
-                    }
+                    // npm install 항상 실행 (의존성 최신 상태 유지)
+                    echo 'Installing dependencies...'
+                    bat 'npm install'
                     
                     // playwright가 설치되어 있지 않으면 설치
                     def playwrightExists = bat(
@@ -152,6 +148,16 @@ pipeline {
                 if (fileExists('test-results/results.json')) {
                     // results.json을 DB에 저장
                     try {
+                        // pg 패키지 확인
+                        def pgExists = bat(
+                            script: 'if exist "node_modules\\pg" (exit 0) else (exit 1)',
+                            returnStatus: true
+                        )
+                        if (pgExists != 0) {
+                            echo "⚠️ pg package not found, running npm install..."
+                            bat 'npm install'
+                        }
+                        
                         bat """
                             if not defined DB_HOST set DB_HOST=localhost
                             if not defined DB_PORT set DB_PORT=5432
@@ -163,17 +169,22 @@ pipeline {
                         echo "✅ Test results saved to database"
                     } catch (Exception e) {
                         echo "⚠️ Could not save to database: ${e.message}"
+                        echo "⚠️ Make sure PostgreSQL is running and accessible at ${env.DB_HOST ?: 'localhost'}:${env.DB_PORT ?: '5432'}"
                     }
                     
                     // Allure 결과를 영구 저장소에 저장
-                    try {
-                        bat """
-                            if not defined ALLURE_RESULTS_PERMANENT set ALLURE_RESULTS_PERMANENT=./allure-results-permanent
-                            node scripts/save-allure-results.js
-                        """
-                        echo "✅ Allure results saved to permanent storage"
-                    } catch (Exception e) {
-                        echo "⚠️ Could not save Allure results: ${e.message}"
+                    if (fileExists('allure-results')) {
+                        try {
+                            bat """
+                                if not defined ALLURE_RESULTS_PERMANENT set ALLURE_RESULTS_PERMANENT=./allure-results-permanent
+                                node scripts/save-allure-results.js
+                            """
+                            echo "✅ Allure results saved to permanent storage"
+                        } catch (Exception e) {
+                            echo "⚠️ Could not save Allure results: ${e.message}"
+                        }
+                    } else {
+                        echo "⚠️ allure-results directory not found, skipping Allure results save"
                     }
                     
                     try {
