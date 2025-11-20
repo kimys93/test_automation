@@ -15,6 +15,9 @@ RUN apt-get update && apt-get install -y \
     && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /usr/share/keyrings/postgresql-keyring.gpg \
     && echo "deb [signed-by=/usr/share/keyrings/postgresql-keyring.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list
 
+# sudo 먼저 설치
+RUN apt-get update && apt-get install -y sudo && rm -rf /var/lib/apt/lists/*
+
 # PostgreSQL, Java, Python 설치
 RUN apt-get update && apt-get install -y \
     postgresql-15 \
@@ -90,25 +93,25 @@ if [ -f /workspace/database/schema.sql ]; then\n\
 fi\n\
 \n\
 # 영구 저장소의 Allure 결과를 allure-results로 병합\n\
+mkdir -p /workspace/allure-results\n\
 if [ -d /workspace/allure-results-permanent ] && [ -n "$(ls -A /workspace/allure-results-permanent 2>/dev/null)" ]; then\n\
     echo "Merging permanent Allure results..."\n\
-    mkdir -p /workspace/allure-results\n\
     cp -r /workspace/allure-results-permanent/* /workspace/allure-results/ 2>/dev/null || true\n\
     echo "Permanent results merged"\n\
 fi\n\
 \n\
-# Allure 리포트 생성 및 서버 시작\n\
-if [ -d /workspace/allure-results ] && [ -n "$(ls -A /workspace/allure-results 2>/dev/null)" ]; then\n\
-    echo "Generating Allure report..."\n\
-    allure generate /workspace/allure-results -o /workspace/allure-report --clean || true\n\
-    echo "Report generated successfully"\n\
-fi\n\
-\n\
-# Allure 리포트 서버 백그라운드 시작\n\
+# Allure 리포트 디렉토리 생성\n\
 mkdir -p /workspace/allure-report\n\
+\n\
+# 처음 시작 시 Allure 리포트 생성\n\
+allure generate /workspace/allure-results -o /workspace/allure-report --clean || true\n\
+\n\
+# Allure 리포트 서버 시작 (항상 시작)\n\
 cd /workspace/allure-report\n\
+echo "Starting Allure report server on port 5050..."\n\
 python3 -m http.server 5050 --bind 0.0.0.0 &\n\
 SERVER_PID=$!\n\
+echo "Allure server started (PID: $SERVER_PID)"\n\
 \n\
 # 주기적으로 Allure 리포트 재생성 (변화가 있을 때만)\n\
 LAST_CHECKSUM=""\n\
