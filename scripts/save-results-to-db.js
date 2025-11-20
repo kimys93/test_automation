@@ -47,13 +47,33 @@ async function saveResultsToDB() {
     password: process.env.DB_PASSWORD || 'postgres',
     max: 20,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000,
+    connectionTimeoutMillis: 10000, // 10초로 증가
   });
 
   try {
-    // DB 연결 테스트
-    await pool.query('SELECT NOW()');
-    console.log('✅ DB 연결 성공');
+    // DB 연결 테스트 (재시도 로직 포함)
+    let connected = false;
+    let retries = 3;
+    let lastError = null;
+    
+    while (retries > 0 && !connected) {
+      try {
+        await pool.query('SELECT NOW()');
+        console.log('✅ DB 연결 성공');
+        connected = true;
+      } catch (error) {
+        lastError = error;
+        retries--;
+        if (retries > 0) {
+          console.log(`⚠️ DB 연결 실패, ${retries}번 더 시도합니다... (${error.message})`);
+          await new Promise(resolve => setTimeout(resolve, 2000)); // 2초 대기
+        }
+      }
+    }
+    
+    if (!connected) {
+      throw new Error(`DB 연결 실패: ${lastError?.message || 'Unknown error'}`);
+    }
 
     // 실행 정보 계산
     const stats = resultsJson.stats;
