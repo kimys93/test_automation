@@ -150,6 +150,32 @@ pipeline {
         always {
             script {
                 if (fileExists('test-results/results.json')) {
+                    // results.json을 DB에 저장
+                    try {
+                        bat """
+                            if not defined DB_HOST set DB_HOST=localhost
+                            if not defined DB_PORT set DB_PORT=5432
+                            if not defined DB_NAME set DB_NAME=test_automation
+                            if not defined DB_USER set DB_USER=postgres
+                            if not defined DB_PASSWORD set DB_PASSWORD=postgres
+                            node scripts/save-results-to-db.js
+                        """
+                        echo "✅ Test results saved to database"
+                    } catch (Exception e) {
+                        echo "⚠️ Could not save to database: ${e.message}"
+                    }
+                    
+                    // Allure 결과를 영구 저장소에 저장
+                    try {
+                        bat """
+                            if not defined ALLURE_RESULTS_PERMANENT set ALLURE_RESULTS_PERMANENT=./allure-results-permanent
+                            node scripts/save-allure-results.js
+                        """
+                        echo "✅ Allure results saved to permanent storage"
+                    } catch (Exception e) {
+                        echo "⚠️ Could not save Allure results: ${e.message}"
+                    }
+                    
                     try {
                         def resultsJson = readJSON file: 'test-results/results.json'
                         def totalTests = 0

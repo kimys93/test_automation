@@ -12,7 +12,8 @@ dotenv.config();
 function getReporters() {
   /** @type {import('@playwright/test').ReporterDescription[]} */
   const reporters = [
-    ['html'],
+    // HTML 리포트는 생성하되 서버는 시작하지 않음 (별도 리포트 서버 사용)
+    ['html', { open: 'never' }],
     ['list'],
     ['json', { outputFile: 'test-results/results.json' }],
     ['allure-playwright', { outputFolder: 'allure-results' }]
@@ -58,18 +59,22 @@ export default defineConfig({
     viewport: null,
   },
 
-  /* 테스트할 프로젝트들 */
-  projects: [
-    {
-      name: 'chromium',
-      use: { 
-        ...devices['Desktop Chrome'],
-        /* 브라우저를 최대화된 상태로 실행 */
-        launchOptions: {
-          args: ['--start-maximized']
-        }
-      },
-    },
+        /* 테스트할 프로젝트들 */
+        projects: [
+          {
+            name: 'chromium',
+            use: { 
+              ...devices['Desktop Chrome'],
+              /* 브라우저를 최대화된 상태로 실행 */
+              launchOptions: {
+                args: [
+                  '--start-maximized',
+                  '--no-sandbox',
+                  '--disable-setuid-sandbox'
+                ]
+              }
+            },
+          },
     // {
     //   name: 'firefox',
     //   use: { ...devices['Desktop Firefox'] },
@@ -86,5 +91,6 @@ export default defineConfig({
   //   url: process.env.BASE_URL || 'http://localhost:3000',
   //   reuseExistingServer: !process.env.CI,
   // },
+
 });
 

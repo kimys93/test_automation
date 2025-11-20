@@ -1,48 +1,34 @@
 version: '3.8'
 
 services:
-  postgres:
-    image: postgres:15
-    container_name: test-automation-db
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: test-automation-server
+    ports:
+      - "${DB_PORT:-5432}:5432"
+      - "5050:5050"
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
       POSTGRES_DB: ${DB_NAME:-test_automation}
-    ports:
-      - "${DB_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
-  n8n:
-    image: n8nio/n8n
-    container_name: test-automation-n8n
-    user: "0:0"  # root 사용자로 실행 (파일 권한 문제 해결)
-    ports:
-      - "5678:5678"
-    environment:
-      - N8N_BASIC_AUTH_ACTIVE=true
-      - N8N_BASIC_AUTH_USER=admin
-      - N8N_BASIC_AUTH_PASSWORD=admin
-      - N8N_HOST=localhost
-      - N8N_PORT=5678
-      - N8N_PROTOCOL=http
-      - N8N_USER_FOLDER=/home/node/.n8n  # 데이터 디렉토리 명시
-    volumes:
-      - n8n_data:/home/node/.n8n
-      - .:/workspace  # 프로젝트 디렉토리 마운트
-    working_dir: /workspace  # 작업 디렉토리 설정
+      - .:/workspace
+      - allure_results:/workspace/allure-results
+      - allure_results_permanent:/workspace/allure-results-permanent
+      - allure_report:/workspace/allure-report
+    working_dir: /workspace
     restart: unless-stopped
 
 volumes:
   postgres_data:
     driver: local
-  n8n_data:
+  allure_results:
+    driver: local
+  allure_results_permanent:
+    driver: local
+  allure_report:
     driver: local
 

@@ -313,9 +313,17 @@ test('Sanity Test - 핵심 기능 검증', async ({ page, context, browser }) =>
   } finally {
     // 테스트 종료 후 브라우저 명시적으로 종료 (n8n에서 실행 시 종료되지 않는 문제 해결)
     try {
-      await page?.close();
-      await context?.close();
-      await browser?.close();
+      if (page) {
+        await page.close().catch(() => {});
+      }
+      if (context) {
+        await context.close().catch(() => {});
+      }
+      if (browser) {
+        await browser.close().catch(() => {});
+      }
+      // 모든 브라우저 프로세스가 완전히 종료될 때까지 대기
+      await new Promise(resolve => setTimeout(resolve, 3000));
     } catch (error) {
       // 이미 종료되었거나 오류가 발생해도 무시
       console.log('Browser cleanup:', error.message);
