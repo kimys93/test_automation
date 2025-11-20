@@ -309,6 +309,18 @@ async function saveResultsToDB() {
     console.log(`   실패: ${failedTests}`);
     console.log(`   스킵: ${skippedTests}`);
 
+    // 최종 확인: pool 종료 전에 다시 한번 확인
+    console.log(`\n🔍 최종 확인: test_runs 테이블의 총 레코드 수`);
+    const finalCheck = await pool.query('SELECT COUNT(*) as count FROM test_runs');
+    console.log(`📊 현재 test_runs 테이블의 총 레코드 수: ${finalCheck.rows[0].count}`);
+    
+    const finalCheckById = await pool.query('SELECT id, run_id FROM test_runs WHERE id = $1', [testRunId]);
+    if (finalCheckById.rows.length > 0) {
+      console.log(`✅ 최종 확인 성공: ${JSON.stringify(finalCheckById.rows[0])}`);
+    } else {
+      console.error(`❌ 최종 확인 실패: id ${testRunId}를 찾을 수 없습니다!`);
+    }
+
   } catch (error) {
     console.error('❌ DB 저장 중 오류 발생:', error);
     process.exit(1);
