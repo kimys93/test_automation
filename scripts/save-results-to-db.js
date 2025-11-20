@@ -192,6 +192,7 @@ async function saveResultsToDB() {
       RETURNING id;
     `;
 
+    console.log(`🔍 INSERT 쿼리 실행 전: run_id=${runId}`);
     const runResult = await pool.query(insertRunQuery, [
       runId,
       testType,
@@ -211,9 +212,12 @@ async function saveResultsToDB() {
 
     const testRunId = runResult.rows[0].id;
     console.log(`✅ test_runs 저장 완료 (id: ${testRunId}, run_id: ${runId})`);
+    console.log(`🔍 INSERT 쿼리 실행 후: result.rows=${JSON.stringify(runResult.rows)}`);
     
-    // 실제로 저장되었는지 확인
+    // 실제로 저장되었는지 확인 (다른 연결로 확인)
+    console.log(`🔍 저장 확인 쿼리 실행: SELECT id, run_id FROM test_runs WHERE id = ${testRunId}`);
     const verifyResult = await pool.query('SELECT id, run_id FROM test_runs WHERE id = $1', [testRunId]);
+    console.log(`🔍 저장 확인 결과: ${JSON.stringify(verifyResult.rows)}`);
     if (verifyResult.rows.length > 0) {
       console.log(`✅ 저장 확인됨: ${JSON.stringify(verifyResult.rows[0])}`);
     } else {
