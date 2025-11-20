@@ -51,18 +51,28 @@ VOLUME ["/workspace", "/var/lib/postgresql/data"]
 RUN echo '#!/bin/bash\n\
 set -e\n\
 \n\
-# PostgreSQL 데이터 디렉토리 초기화\n\
-if [ ! -d /var/lib/postgresql/15/main ]; then\n\
+# PostgreSQL 데이터 디렉토리 초기화 (볼륨 마운트 경로와 일치)\n\
+if [ ! -d /var/lib/postgresql/data ]; then\n\
     echo "Initializing PostgreSQL data directory..."\n\
-    sudo -u postgres /usr/lib/postgresql/15/bin/initdb -D /var/lib/postgresql/15/main\n\
+    sudo -u postgres /usr/lib/postgresql/15/bin/initdb -D /var/lib/postgresql/data\n\
 fi\n\
 \n\
-# PostgreSQL 설정\n\
-echo "host all all 0.0.0.0/0 md5" >> /etc/postgresql/15/main/pg_hba.conf\n\
-echo "listen_addresses = '\''*'\''" >> /etc/postgresql/15/main/postgresql.conf\n\
+# PostgreSQL 설정 파일 경로 수정\n\
+PGDATA=/var/lib/postgresql/data\n\
+if [ -f $PGDATA/pg_hba.conf ]; then\n\
+    echo "host all all 0.0.0.0/0 md5" >> $PGDATA/pg_hba.conf\n\
+    echo "listen_addresses = '\''*'\''" >> $PGDATA/postgresql.conf\n\
+else\n\
+    # 설정 파일이 없으면 기본 위치에서 복사\n\
+    if [ -f /etc/postgresql/15/main/pg_hba.conf ]; then\n\
+        echo "host all all 0.0.0.0/0 md5" >> /etc/postgresql/15/main/pg_hba.conf\n\
+        echo "listen_addresses = '\''*'\''" >> /etc/postgresql/15/main/postgresql.conf\n\
+    fi\n\
+fi\n\
 \n\
-# PostgreSQL 시작\n\
-service postgresql start\n\
+# PostgreSQL 시작 (데이터 디렉토리 지정)\n\
+export PGDATA=/var/lib/postgresql/data\n\
+sudo -u postgres /usr/lib/postgresql/15/bin/pg_ctl -D $PGDATA -l /var/log/postgresql/postgresql.log start || service postgresql start\n\
 sleep 5\n\
 \n\
 # PostgreSQL이 완전히 시작될 때까지 대기\n\
