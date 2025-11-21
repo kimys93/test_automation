@@ -32,7 +32,7 @@ pipeline {
         stage('Start Server') {
             steps {
                 script {
-                    echo '🐘 통합 서버(PostgreSQL + Allure) 컨테이너 상태 확인 중...'
+                    echo '🐘 통합 서버(PostgreSQL + Grafana) 컨테이너 상태 확인 중...'
                     // 통합 서버 컨테이너가 실행 중인지 확인
                     def serverRunning = sh(
                         script: 'docker ps --filter "name=test-automation-server" --filter "status=running" --format "{{.Names}}" | grep -q "test-automation-server" && exit 0 || exit 1',
@@ -148,46 +148,6 @@ pipeline {
             }
         }
         
-        stage('Convert Allure Results (Depth2 Counting)') {
-            when {
-                expression { 
-                    return fileExists('allure-results')
-                }
-            }
-            steps {
-                script {
-                    echo '🔄 Allure 결과를 depth2 기준으로 변환 중 (카운팅을 depth2로)...'
-                    try {
-                        sh 'npm run allure:convert-depth2'
-                        echo '✅ Allure 결과 변환 완료 (depth2 기준 카운팅, 상세 단계는 유지)'
-                    } catch (Exception e) {
-                        echo "⚠️ Allure 변환 중 오류 발생: ${e.message}"
-                        // 변환 실패해도 빌드는 계속 진행
-                    }
-                }
-            }
-        }
-        
-        stage('Save Test Results to DB') {
-            when {
-                expression { 
-                    return fileExists('allure-results') && env.DB_HOST
-                }
-            }
-            steps {
-                script {
-                    echo '💾 테스트 결과를 DB에 저장 중...'
-                    try {
-                        sh 'npm run allure:save-db'
-                        echo '✅ DB 저장 완료'
-                    } catch (Exception e) {
-                        echo "❌ DB 저장 중 오류 발생: ${e.message}"
-                        // DB 저장 실패해도 빌드는 계속 진행
-                        currentBuild.result = currentBuild.result ?: 'UNSTABLE'
-                    }
-                }
-            }
-        }
     }
     
     post {
@@ -222,21 +182,6 @@ pipeline {
                     } catch (Exception e) {
                         echo "⚠️ Could not save to database: ${e.message}"
                         echo "⚠️ Make sure PostgreSQL is running and accessible at ${env.DB_HOST ?: 'localhost'}:${env.DB_PORT ?: '5432'}"
-                    }
-                    
-                    // Allure 결과를 영구 저장소에 저장
-                    if (fileExists('allure-results')) {
-                        try {
-                            sh '''
-                                export ALLURE_RESULTS_PERMANENT=${ALLURE_RESULTS_PERMANENT:-./allure-results-permanent}
-                                node scripts/save-allure-results.js
-                            '''
-                            echo "✅ Allure results saved to permanent storage"
-                        } catch (Exception e) {
-                            echo "⚠️ Could not save Allure results: ${e.message}"
-                        }
-                    } else {
-                        echo "⚠️ allure-results directory not found, skipping Allure results permanent storage."
                     }
                     
                     try {
@@ -360,10 +305,9 @@ pipeline {
                         }
                         
                         def testStatus = failedTests > 0 || skippedTests > 0 ? 'Fail' : 'Success'
-                        // Allure 서버 URL 설정
-                        // 환경 변수 ALLURE_SERVER_URL이 설정되어 있으면 사용, 없으면 기본값 사용
-                        def allureServerUrl = env.ALLURE_SERVER_URL ?: 'http://localhost:5050'
-                        def artifactUrl = "${allureServerUrl}"
+                        // Grafana 대시보드 URL 설정
+                        def grafanaUrl = env.GRAFANA_URL ?: 'http://localhost:3001'
+                        def artifactUrl = "${grafanaUrl}"
                         
                         // Pass가 아닌 모든 결과 리스트 메시지 구성
                         def failureListMessage = ""

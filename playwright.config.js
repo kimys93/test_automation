@@ -15,8 +15,7 @@ function getReporters() {
     // HTML 리포트는 생성하되 서버는 시작하지 않음 (별도 리포트 서버 사용)
     ['html', { open: 'never' }],
     ['list'],
-    ['json', { outputFile: 'test-results/results.json' }],
-    ['allure-playwright', { outputFolder: 'allure-results' }]
+    ['json', { outputFile: 'test-results/results.json' }]
   ];
 
   return reporters;

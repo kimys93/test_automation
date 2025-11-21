@@ -12,13 +12,7 @@
     "test:report": "playwright show-report",
     "test:functional": "playwright test tests",
     "test:sanity": "playwright test tests-sanity",
-    "test:regression": "playwright test tests-regression",
-    "allure:generate": "allure generate allure-results -o allure-report",
-    "allure:open": "allure open allure-report",
-    "allure:save-db": "node scripts/save-allure-to-db.js",
-    "allure:serve": "allure serve allure-results",
-    "allure:filter-depth2": "node scripts/filter-allure-depth2.js",
-    "allure:convert-depth2": "node scripts/convert-allure-depth2.js"
+    "test:regression": "playwright test tests-regression"
   },
   "keywords": [
     "playwright",
@@ -30,11 +24,9 @@
   "devDependencies": {
     "@playwright/test": "^1.40.0",
     "@types/node": "^24.10.1",
-    "allure-playwright": "^2.13.0",
     "dotenv": "^17.2.3"
   },
   "dependencies": {
-    "allure": "^3.0.0-beta.23",
     "pg": "^8.11.3"
   }
 }

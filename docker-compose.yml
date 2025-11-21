@@ -8,7 +8,6 @@ services:
     container_name: test-automation-server
     ports:
       - "${DB_PORT:-5432}:5432"
-      - "5050:5050"
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
@@ -16,14 +15,29 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - .:/workspace
-      # Jenkins 워크스페이스의 allure-results-permanent를 직접 마운트 (자동 동기화)
-      - ${JENKINS_WORKSPACE:-~/.jenkins/workspace/test_automation}/allure-results-permanent:/workspace/allure-results-permanent
-      - ./allure-results:/workspace/allure-results
-      - ./allure-report:/workspace/allure-report
     working_dir: /workspace
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: test-automation-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_INSTALL_PLUGINS=
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      - server
     restart: unless-stopped
 
 volumes:
   postgres_data:
+    driver: local
+  grafana_data:
     driver: local
 

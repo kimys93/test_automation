@@ -18,28 +18,21 @@ RUN apt-get update && apt-get install -y \
 # sudo 먼저 설치
 RUN apt-get update && apt-get install -y sudo && rm -rf /var/lib/apt/lists/*
 
-# PostgreSQL, Java, Python 설치
+# PostgreSQL, Java, Python, Node.js 설치
 RUN apt-get update && apt-get install -y \
     postgresql-15 \
     postgresql-contrib-15 \
     openjdk-17-jdk \
     python3 \
     python3-pip \
+    curl \
+    && curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - \
+    && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 # Java 환경 변수 설정 (아키텍처에 따라 자동 감지)
 ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-arm64
 ENV PATH=$PATH:$JAVA_HOME/bin
-
-# Allure Commandline 설치
-RUN ALLURE_VERSION=$(curl -s https://api.github.com/repos/allure-framework/allure2/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/') && \
-    wget -q "https://github.com/allure-framework/allure2/releases/download/${ALLURE_VERSION}/allure-${ALLURE_VERSION}.tgz" && \
-    tar -xzf "allure-${ALLURE_VERSION}.tgz" -C /opt && \
-    rm "allure-${ALLURE_VERSION}.tgz" && \
-    ln -s /opt/allure-${ALLURE_VERSION}/bin/allure /usr/local/bin/allure && \
-    chmod +x /usr/local/bin/allure
-
-# PostgreSQL 초기화는 런타임에 수행
 
 # 작업 디렉토리 설정
 WORKDIR /workspace
@@ -102,69 +95,12 @@ if [ -f /workspace/database/schema.sql ]; then\n\
     sudo -u postgres psql -d ${POSTGRES_DB:-test_automation} -f /workspace/database/schema.sql || true\n\
 fi\n\
 \n\
-# 영구 저장소의 Allure 결과를 allure-results로 병합\n\
-mkdir -p /workspace/allure-results\n\
-if [ -d /workspace/allure-results-permanent ] && [ -n "$(ls -A /workspace/allure-results-permanent 2>/dev/null)" ]; then\n\
-    echo "Merging permanent Allure results..."\n\
-    cp -r /workspace/allure-results-permanent/* /workspace/allure-results/ 2>/dev/null || true\n\
-    echo "Permanent results merged"\n\
-fi\n\
-\n\
-# Allure 리포트 디렉토리 생성\n\
-mkdir -p /workspace/allure-report\n\
-\n\
-# 처음 시작 시 Allure 리포트 생성 (depth2 변환 후)\n\
-if [ -d /workspace/allure-results ] && [ -n "$(ls -A /workspace/allure-results 2>/dev/null)" ]; then\n\
-    echo "Converting Allure results to depth2 counting..."\n\
-    cd /workspace && node scripts/convert-allure-depth2.js || true\n\
-fi\n\
-allure generate /workspace/allure-results -o /workspace/allure-report --clean || true\n\
-\n\
-# Allure 리포트 서버 시작 (항상 시작)\n\
-cd /workspace/allure-report\n\
-echo "Starting Allure report server on port 5050..."\n\
-python3 -m http.server 5050 --bind 0.0.0.0 &\n\
-SERVER_PID=$!\n\
-echo "Allure server started (PID: $SERVER_PID)"\n\
-\n\
-# 주기적으로 Allure 리포트 재생성 (변화가 있을 때만)\n\
-LAST_CHECKSUM=""\n\
-while true; do\n\
-    sleep 30\n\
-    # 영구 저장소의 새로운 결과를 allure-results로 병합\n\
-    if [ -d /workspace/allure-results-permanent ] && [ -n "$(ls -A /workspace/allure-results-permanent 2>/dev/null)" ]; then\n\
-        mkdir -p /workspace/allure-results\n\
-        # 영구 저장소의 파일 중 allure-results에 없는 것만 복사\n\
-        for file in /workspace/allure-results-permanent/*; do\n\
-            if [ -f "$file" ]; then\n\
-                filename=$(basename "$file")\n\
-                if [ ! -f "/workspace/allure-results/$filename" ]; then\n\
-                    cp "$file" "/workspace/allure-results/"\n\
-                    echo "New Allure result file added: $filename"\n\
-                fi\n\
-            fi\n\
-        done\n\
-    fi\n\
-    \n\
-    if [ -d /workspace/allure-results ] && [ -n "$(ls -A /workspace/allure-results 2>/dev/null)" ]; then\n\
-        # allure-results 디렉토리의 파일들 체크섬 계산\n\
-        CURRENT_CHECKSUM=$(find /workspace/allure-results -type f -exec md5sum {} \; 2>/dev/null | md5sum | cut -d'\'' '\'' -f1)\n\
-        if [ "$CURRENT_CHECKSUM" != "$LAST_CHECKSUM" ]; then\n\
-            echo "Allure results changed, converting to depth2 counting and regenerating report..."\n\
-            cd /workspace && node scripts/convert-allure-depth2.js || true\n\
-            allure generate /workspace/allure-results -o /workspace/allure-report --clean || true\n\
-            LAST_CHECKSUM=$CURRENT_CHECKSUM\n\
-            echo "Report regenerated successfully"\n\
-        fi\n\
-    fi\n\
-done &\n\
-\n\
-# PostgreSQL과 Allure 서버가 계속 실행되도록 대기\n\
-wait $SERVER_PID\n\
+# PostgreSQL이 계속 실행되도록 대기\n\
+tail -f /dev/null\n\
 ' > /start.sh && chmod +x /start.sh
 
 # 포트 노출
-EXPOSE 5432 5050
+EXPOSE 5432
 
 # 시작 스크립트 실행
 CMD ["/start.sh"]
