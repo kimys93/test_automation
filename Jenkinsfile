@@ -44,7 +44,7 @@ pipeline {
                         echo '🔍 DB 스키마 확인 중...'
                         try {
                             def schemaCheck = sh(
-                                script: 'docker exec test-automation-server bash -c "export PGPASSWORD=postgres && psql -h localhost -U postgres -d test_automation -t -c \\"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = \\''public\\'';\\""',
+                                script: "docker exec test-automation-server bash -c 'export PGPASSWORD=postgres && psql -h localhost -U postgres -d test_automation -t -c \"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = \\'public\\';\"'",
                                 returnStatus: true
                             )
                             if (schemaCheck != 0) {
