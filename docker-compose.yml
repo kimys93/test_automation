@@ -16,19 +16,14 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - .:/workspace
-      - allure_results:/workspace/allure-results
-      - allure_results_permanent:/workspace/allure-results-permanent
-      - allure_report:/workspace/allure-report
+      # Jenkins 워크스페이스의 allure-results-permanent를 직접 마운트 (자동 동기화)
+      - ${JENKINS_WORKSPACE:-~/.jenkins/workspace/test_automation}/allure-results-permanent:/workspace/allure-results-permanent
+      - ./allure-results:/workspace/allure-results
+      - ./allure-report:/workspace/allure-report
     working_dir: /workspace
     restart: unless-stopped
 
 volumes:
   postgres_data:
-    driver: local
-  allure_results:
-    driver: local
-  allure_results_permanent:
-    driver: local
-  allure_report:
     driver: local
 
