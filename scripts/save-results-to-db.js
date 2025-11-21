@@ -224,8 +224,9 @@ async function saveResultsToDB() {
       console.error(`❌ 저장 확인 실패: id ${testRunId}를 찾을 수 없습니다!`);
     }
 
-    // test_cases 테이블에 저장
+    // test_cases 테이블에 저장 (depth2 step을 개별 테스트 케이스로 저장)
     const testCases = [];
+    const savedStepKeys = new Set();
     
     if (resultsJson.suites && Array.isArray(resultsJson.suites)) {
       resultsJson.suites.forEach(suite => {
@@ -235,37 +236,64 @@ async function saveResultsToDB() {
               spec.tests.forEach(test => {
                 if (test.results && Array.isArray(test.results)) {
                   const finalResult = test.results[test.results.length - 1];
-                  if (finalResult) {
-                    const status = finalResult.status ? finalResult.status.toUpperCase() : 'UNKNOWN';
+                  if (finalResult && finalResult.steps && Array.isArray(finalResult.steps)) {
+                    const baseTestTitle = test.title || 'Unknown Test';
                     
-                    let testStartTime, testEndTime;
-                    if (finalResult.startTime) {
-                      testStartTime = new Date(finalResult.startTime);
-                      if (isNaN(testStartTime.getTime())) {
-                        testStartTime = new Date();
+                    // depth2 step을 개별 테스트 케이스로 저장
+                    finalResult.steps.forEach(depth2Step => {
+                      const stepTitle = depth2Step.title || '';
+                      
+                      // Before Hooks, After Hooks 등은 제외
+                      if (!stepTitle || 
+                          stepTitle.includes('Before Hooks') || 
+                          stepTitle.includes('After Hooks') ||
+                          stepTitle.includes('Fixture') ||
+                          stepTitle.includes('Worker Cleanup') ||
+                          stepTitle.includes('Close browser')) {
+                        return;
                       }
-                      const testDuration = finalResult.duration || 0;
-                      testEndTime = new Date(testStartTime.getTime() + testDuration);
-                    } else {
-                      const now = new Date();
-                      testStartTime = now;
-                      testEndTime = now;
-                    }
-                    
-                    testCases.push({
-                      test_run_id: testRunId,
-                      suite_name: suite.title || 'Unknown Suite',
-                      test_name: test.title || 'Unknown Test',
-                      status: status,
-                      duration_ms: Math.round(finalResult.duration || 0),
-                      error_message: finalResult.error?.message || null,
-                      stack_trace: finalResult.error?.stack || null,
-                      start_time: testStartTime.toISOString(),
-                      end_time: testEndTime.toISOString(),
-                      severity: null,
-                      owner: null,
-                      tags: [],
-                      attachments: null
+                      
+                      // 중복 방지
+                      const stepKey = `${baseTestTitle} > ${stepTitle}`;
+                      if (savedStepKeys.has(stepKey)) {
+                        return;
+                      }
+                      savedStepKeys.add(stepKey);
+                      
+                      // depth2 step의 상태 결정
+                      let stepStatus = 'PASSED';
+                      let stepError = null;
+                      
+                      // depth2 step에 error가 있는지 확인
+                      if (depth2Step.error != null) {
+                        stepStatus = 'FAILED';
+                        stepError = depth2Step.error;
+                      } else if (depth2Step.steps && Array.isArray(depth2Step.steps)) {
+                        // depth3까지 확인
+                        for (const depth3Step of depth2Step.steps) {
+                          if (depth3Step.error != null) {
+                            stepStatus = 'FAILED';
+                            stepError = depth3Step.error;
+                            break;
+                          }
+                        }
+                      }
+                      
+                      // depth2 step의 duration 계산
+                      const stepDuration = depth2Step.duration || 0;
+                      
+                      testCases.push({
+                        test_run_id: testRunId,
+                        suite_name: suite.title || 'Unknown Suite',
+                        test_name: stepTitle, // depth2 step의 제목을 test_name으로 사용
+                        test_full_name: `${baseTestTitle} > ${stepTitle}`, // 전체 경로
+                        status: stepStatus,
+                        duration_ms: Math.round(stepDuration),
+                        error_message: stepError?.message || null,
+                        error_stack: stepError?.stack || null,
+                        attachments: null,
+                        steps: depth2Step.steps ? JSON.stringify(depth2Step.steps) : null
+                      });
                     });
                   }
                 }
@@ -290,13 +318,13 @@ async function saveResultsToDB() {
           testCase.test_run_id,
           testCase.suite_name,
           testCase.test_name,
-          testCase.test_name, // test_full_name
+          testCase.test_full_name,
           testCase.status,
           testCase.duration_ms,
           testCase.error_message,
-          testCase.stack_trace,
+          testCase.error_stack,
           testCase.attachments ? JSON.stringify(testCase.attachments) : null,
-          null // steps
+          testCase.steps
         ]);
       }
       
