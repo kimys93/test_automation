@@ -364,7 +364,3 @@ module.exports = NewPage;
 - **Container**: Docker & Docker Compose
 - **Language**: JavaScript (Node.js)
 - **Version Control**: Git (GitHub)
-
-## 라이선스
-
-MIT
