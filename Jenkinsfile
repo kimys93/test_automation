@@ -31,84 +31,15 @@ pipeline {
         
         stage('Start Server') {
             steps {
-                script {
-                    echo '🐘 통합 서버(PostgreSQL + Grafana) 컨테이너 상태 확인 중...'
-                    // 통합 서버 컨테이너가 실행 중인지 확인
-                    def serverRunning = sh(
-                        script: 'docker ps --filter "name=test-automation-server" --filter "status=running" --format "{{.Names}}" | grep -q "test-automation-server" && exit 0 || exit 1',
-                        returnStatus: true
-                    )
-                    
-                    if (serverRunning == 0) {
-                        echo '✅ 통합 서버가 이미 실행 중입니다.'
-                        // 기존 서버가 실행 중이어도 스키마 확인
-                        echo '🔍 DB 스키마 확인 중...'
-                        try {
-                            def schemaCheck = sh(
-                                script: "docker exec test-automation-server bash -c 'export PGPASSWORD=postgres && psql -h localhost -U postgres -d test_automation -t -c \"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = \\'public\\';\"'",
-                                returnStatus: true
-                            )
-                            if (schemaCheck != 0) {
-                                echo '⚠️ 스키마가 없습니다. 스키마 초기화 중...'
-                                sh 'docker exec test-automation-server bash -c "export PGPASSWORD=postgres && psql -h localhost -U postgres -d test_automation -f /workspace/database/schema.sql"'
-                                echo '✅ 스키마 초기화 완료'
-                            } else {
-                                echo '✅ 스키마 확인 완료'
-                            }
-                        } catch (Exception e) {
-                            echo "⚠️ 스키마 확인 중 오류: ${e.message}"
-                        }
-                    } else {
-                        echo '🚀 통합 서버 시작 중...'
-                        try {
-                            // docker-compose로 통합 서버 시작 (재빌드 포함)
-                            sh 'docker-compose up -d --build server'
-                            // 서버가 준비될 때까지 대기 (PostgreSQL 초기화 시간 고려)
-                            sh 'sleep 20'
-                            echo '✅ 통합 서버 시작 완료'
-                            
-                            // 스키마가 제대로 초기화되었는지 확인
-                            echo '🔍 DB 스키마 확인 중...'
-                            sh 'sleep 5'
-                            def tableCount = sh(
-                                script: "docker exec test-automation-server bash -c 'export PGPASSWORD=postgres && psql -h localhost -U postgres -d test_automation -t -c \"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = \\'public\\';\"'",
-                                returnStatus: true
-                            )
-                            if (tableCount != 0) {
-                                echo '⚠️ 스키마가 없습니다. 스키마 초기화 중...'
-                                sh 'docker exec test-automation-server bash -c "export PGPASSWORD=postgres && psql -h localhost -U postgres -d test_automation -f /workspace/database/schema.sql"'
-                                echo '✅ 스키마 초기화 완료'
-                            } else {
-                                echo '✅ 스키마 확인 완료'
-                            }
-                        } catch (Exception e) {
-                            echo "⚠️ 통합 서버 시작 중 오류 발생: ${e.message}"
-                            echo "⚠️ 기존 서버를 사용합니다 (DB_HOST 환경 변수 확인 필요)"
-                        }
-                    }
-                }
+                sh 'docker-compose up -d --build server'
+                sh 'sleep 20'
             }
         }
         
         stage('Install Dependencies') {
             steps {
-                script {
-                    // CI 환경에서는 항상 npm install 실행 (의존성 동기화 보장)
-                    echo 'Installing dependencies...'
-                    sh 'npm install'
-                    
-                    // playwright가 설치되어 있지 않으면 설치
-                    def playwrightExists = sh(
-                        script: 'test -d node_modules/@playwright/test && exit 0 || exit 1',
-                        returnStatus: true
-                    )
-                    if (playwrightExists != 0) {
-                        echo 'Playwright not found, running npx playwright install...'
-                        sh 'npx playwright install'
-                    } else {
-                        echo 'Playwright already installed, skipping installation'
-                    }
-                }
+                sh 'npm install'
+                sh 'npx playwright install'
             }
         }
         
@@ -118,7 +49,6 @@ pipeline {
                     try {
                         sh 'npm run test:sanity'
                     } catch (Exception e) {
-                        echo "테스트 실행 중 오류 발생: ${e.message}"
                         currentBuild.result = 'UNSTABLE'
                     }
                 }
@@ -154,19 +84,7 @@ pipeline {
         always {
             script {
                 if (fileExists('test-results/results.json')) {
-                    // results.json을 DB에 저장
                     try {
-                        // pg 패키지 확인
-                        def pgExists = sh(
-                            script: 'test -d node_modules/pg && exit 0 || exit 1',
-                            returnStatus: true
-                        )
-                        if (pgExists != 0) {
-                            echo "⚠️ pg package not found, running npm install..."
-                            sh 'npm install'
-                        }
-                        
-                        // Jenkins에서 설정한 환경 변수 그대로 사용
                         sh '''
                             export DB_HOST=${DB_HOST}
                             export DB_PORT=${DB_PORT}
@@ -178,10 +96,8 @@ pipeline {
                             export TEST_TYPE=${TEST_TYPE}
                             node scripts/save-results-to-db.js
                         '''
-                        echo "✅ Test results saved to database"
                     } catch (Exception e) {
-                        echo "⚠️ Could not save to database: ${e.message}"
-                        echo "⚠️ Make sure PostgreSQL is running and accessible at ${env.DB_HOST ?: 'localhost'}:${env.DB_PORT ?: '5432'}"
+                        // DB 저장 실패 시 무시
                     }
                     
                     try {
@@ -326,7 +242,7 @@ ${testStatus == 'Success' ? '\n:white_check_mark: Success - 모든 테스트 성
                             tokenCredentialId: 'slack-token'
                         )
                     } catch (Exception e) {
-                        echo "Could not send Slack notification: ${e.message}"
+                        // Slack 알림 실패 시 무시
                     }
                 }
             }
