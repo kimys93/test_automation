@@ -31,8 +31,16 @@ pipeline {
         
         stage('Start Server') {
             steps {
-                sh 'docker compose up -d --build server'
-                sh 'sleep 20'
+                script {
+                    def serverRunning = sh(
+                        script: 'docker ps --filter "name=test-automation-server" --filter "status=running" --format "{{.Names}}" | grep -q "test-automation-server" && exit 0 || exit 1',
+                        returnStatus: true
+                    )
+                    if (serverRunning != 0) {
+                        sh 'docker compose up -d --build server'
+                        sh 'sleep 20'
+                    }
+                }
             }
         }
         
