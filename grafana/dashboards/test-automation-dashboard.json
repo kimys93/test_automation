@@ -529,6 +529,18 @@
           {
             "matcher": {
               "id": "byName",
+              "options": "error_steps"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 300
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
               "options": "error_message"
             },
             "properties": [
@@ -541,22 +553,6 @@
                 "value": "color-text"
               }
             ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "steps"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 600
-              },
-              {
-                "id": "custom.displayMode",
-                "value": "auto"
-              }
-            ]
           }
         ]
       },
@@ -567,13 +563,6 @@
         "y": 24
       },
       "id": 6,
-      "links": [
-        {
-          "title": "Scroll to Error Logs",
-          "type": "link",
-          "url": "#panel-6"
-        }
-      ],
       "options": {
         "cellHeight": "sm",
         "footer": {
@@ -594,7 +583,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n  tc.test_name,\n  tc.test_full_name,\n  tc.status,\n  tc.error_message,\n  tc.steps,\n  tr.run_id\nFROM test_cases tc\nJOIN test_runs tr ON tc.test_run_id = tr.id\nWHERE tc.status = 'FAILED'\nORDER BY tr.started_at DESC, tc.test_name\nLIMIT 50",
+          "rawSql": "SELECT\n  tc.test_name,\n  CASE \n    WHEN tc.steps IS NOT NULL AND tc.steps::text != 'null' THEN\n      (SELECT string_agg(d3_step->>'title', ' > ')\n       FROM jsonb_array_elements(tc.steps::jsonb) AS d2_step,\n            jsonb_array_elements(d2_step->'steps') AS d3_step\n       WHERE d2_step->'steps' IS NOT NULL\n         AND (d3_step->'error' IS NOT NULL OR d3_step->'statusDetails' IS NOT NULL)\n       LIMIT 10)\n    ELSE NULL\n  END AS error_steps,\n  tc.status,\n  tc.error_message,\n  tr.run_id\nFROM test_cases tc\nJOIN test_runs tr ON tc.test_run_id = tr.id\nWHERE tc.status = 'FAILED'\nORDER BY tr.started_at DESC, tc.test_name\nLIMIT 50",
           "refId": "A",
           "sql": {
             "columns": [
