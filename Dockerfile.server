@@ -113,7 +113,11 @@ fi\n\
 # Allure 리포트 디렉토리 생성\n\
 mkdir -p /workspace/allure-report\n\
 \n\
-# 처음 시작 시 Allure 리포트 생성\n\
+# 처음 시작 시 Allure 리포트 생성 (depth2 변환 후)\n\
+if [ -d /workspace/allure-results ] && [ -n "$(ls -A /workspace/allure-results 2>/dev/null)" ]; then\n\
+    echo "Converting Allure results to depth2 counting..."\n\
+    cd /workspace && node scripts/convert-allure-depth2.js || true\n\
+fi\n\
 allure generate /workspace/allure-results -o /workspace/allure-report --clean || true\n\
 \n\
 # Allure 리포트 서버 시작 (항상 시작)\n\
@@ -146,7 +150,8 @@ while true; do\n\
         # allure-results 디렉토리의 파일들 체크섬 계산\n\
         CURRENT_CHECKSUM=$(find /workspace/allure-results -type f -exec md5sum {} \; 2>/dev/null | md5sum | cut -d'\'' '\'' -f1)\n\
         if [ "$CURRENT_CHECKSUM" != "$LAST_CHECKSUM" ]; then\n\
-            echo "Allure results changed, regenerating report..."\n\
+            echo "Allure results changed, converting to depth2 counting and regenerating report..."\n\
+            cd /workspace && node scripts/convert-allure-depth2.js || true\n\
             allure generate /workspace/allure-results -o /workspace/allure-report --clean || true\n\
             LAST_CHECKSUM=$CURRENT_CHECKSUM\n\
             echo "Report regenerated successfully"\n\

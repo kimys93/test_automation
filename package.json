@@ -16,7 +16,9 @@
     "allure:generate": "allure generate allure-results -o allure-report",
     "allure:open": "allure open allure-report",
     "allure:save-db": "node scripts/save-allure-to-db.js",
-    "allure:serve": "allure serve allure-results"
+    "allure:serve": "allure serve allure-results",
+    "allure:filter-depth2": "node scripts/filter-allure-depth2.js",
+    "allure:convert-depth2": "node scripts/convert-allure-depth2.js"
   },
   "keywords": [
     "playwright",

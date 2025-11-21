@@ -168,6 +168,26 @@ pipeline {
                 }
             }
         }
+        
+        stage('Convert Allure Results (Depth2 Counting)') {
+            when {
+                expression { 
+                    return fileExists('allure-results')
+                }
+            }
+            steps {
+                script {
+                    echo '🔄 Allure 결과를 depth2 기준으로 변환 중 (카운팅을 depth2로)...'
+                    try {
+                        sh 'npm run allure:convert-depth2'
+                        echo '✅ Allure 결과 변환 완료 (depth2 기준 카운팅, 상세 단계는 유지)'
+                    } catch (Exception e) {
+                        echo "⚠️ Allure 변환 중 오류 발생: ${e.message}"
+                        // 변환 실패해도 빌드는 계속 진행
+                    }
+                }
+            }
+        }
     }
     
     post {
