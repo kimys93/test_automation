@@ -10,6 +10,8 @@ pipeline {
         // Jenkins URL 환경 변수 (Jenkins 시스템 설정에서 전역 환경 변수로 설정 필요)
         // Jenkins 관리 → 시스템 설정 → Global properties → Environment variables
         // Name: JENKINS_URL, Value: http://IP 주소:포트
+        JENKINS_URL = "${env.JENKINS_URL}"
+        GRAFANA_URL = "${env.GRAFANA_URL}"
         
         // DB 설정 (Jenkins 시스템 설정의 환경 변수에서 가져옴)
         DB_HOST = "${env.DB_HOST}"
@@ -229,9 +231,13 @@ pipeline {
                         }
                         
                         def testStatus = failedTests > 0 || skippedTests > 0 ? 'Fail' : 'Success'
-                        // Grafana 대시보드 URL 설정
-                        def grafanaUrl = env.GRAFANA_URL ?: 'http://localhost:3001'
-                        def artifactUrl = "${grafanaUrl}"
+                        // Grafana 대시보드 URL 설정 (Jenkins 환경 변수에서 가져옴)
+                        def grafanaUrl = env.GRAFANA_URL
+                        // Playwright Report URL 설정 (Jenkins HTML Publisher 플러그인으로 생성된 리포트)
+                        def jenkinsUrl = env.JENKINS_URL
+                        def jobName = env.JOB_NAME ?: 'test_automation'
+                        def buildNumber = env.BUILD_NUMBER ?: '1'
+                        def playwrightReportUrl = "${jenkinsUrl}/job/${jobName}/${buildNumber}/Playwright_20Report/"
                         
                         // Pass가 아닌 모든 결과 리스트 메시지 구성
                         def failureListMessage = ""
@@ -240,7 +246,8 @@ pipeline {
                         }
                         
                         def message = """Test Status:
-Total Tests: ${totalTests}, Passed: ${passedTests}, Failed: ${failedTests}, Skipped: ${skippedTests} - (<${artifactUrl}|Open>)
+Total Tests: ${totalTests}, Passed: ${passedTests}, Failed: ${failedTests}, Skipped: ${skippedTests}
+📊 <${grafanaUrl}|Grafana Dashboard> | 📋 <${playwrightReportUrl}|Playwright Report>
 ${testStatus == 'Success' ? '\n:white_check_mark: Success - 모든 테스트 성공' : '\n:red_circle: Fail - 실패한 케이스 확인 필요'}${failureListMessage}"""
                         
                         slackSend(
