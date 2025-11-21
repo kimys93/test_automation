@@ -31,7 +31,7 @@ pipeline {
         
         stage('Start Server') {
             steps {
-                bat 'docker-compose up -d --build server'
+                bat 'docker compose up -d --build server'
                 bat 'timeout /t 20 /nobreak'
             }
         }

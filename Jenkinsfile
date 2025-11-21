@@ -31,7 +31,7 @@ pipeline {
         
         stage('Start Server') {
             steps {
-                sh 'docker-compose up -d --build server'
+                sh 'docker compose up -d --build server'
                 sh 'sleep 20'
             }
         }
