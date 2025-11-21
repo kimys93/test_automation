@@ -294,7 +294,7 @@ test('Sanity Test - 핵심 기능 검증', async ({ page, context, browser }) =>
       await test.step('알림 페이지로 이동', async () => {
         await notificationPage.navigate();
         await page.waitForLoadState('networkidle');
-        await expect(page).toHaveURL(/.*notificccations/, { timeout: 5000 });
+        await expect(page).toHaveURL(/.*notifications/, { timeout: 5000 });
       });
       
       // 최신 알림 확인
