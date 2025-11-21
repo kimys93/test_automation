@@ -109,8 +109,8 @@ test-automation/
 
 2. **`.env` 파일 편집**
    ```env
-   BASE_URL=http://192.168.219.105:3000
-   JENKINS_URL=http://192.168.219.105:8080
+   BASE_URL=http://IP주소:3000
+   JENKINS_URL=http://IP주소:8080
    ```
    실제 테스트 서버와 Jenkins 서버의 IP 주소와 포트를 입력하세요.
 
