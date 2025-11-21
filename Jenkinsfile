@@ -11,14 +11,15 @@ pipeline {
         // Jenkins 관리 → 시스템 설정 → Global properties → Environment variables
         // Name: JENKINS_URL, Value: http://IP 주소:포트
         
-        REPORTPORTAL_ENABLED = "${env.REPORTPORTAL_ENABLED}"
-        REPORTPORTAL_ENDPOINT = "${env.REPORTPORTAL_ENDPOINT}"
-        REPORTPORTAL_PROJECT = "${env.REPORTPORTAL_PROJECT}"
-        REPORTPORTAL_LAUNCH = "${env.REPORTPORTAL_LAUNCH}"
-        REPORTPORTAL_DESCRIPTION = "${env.REPORTPORTAL_DESCRIPTION}"
-        REPORTPORTAL_TOKEN = "${env.REPORTPORTAL_TOKEN}"
-        // TEST_TYPE이 설정되지 않았거나 null이면 기본값 'sanity' 사용
-        TEST_TYPE = "${env.TEST_TYPE ?: 'sanity'}"
+        // DB 설정 (Jenkins 시스템 설정의 환경 변수에서 가져옴)
+        DB_HOST = "${env.DB_HOST}"
+        DB_PORT = "${env.DB_PORT}"
+        DB_NAME = "${env.DB_NAME}"
+        DB_USER = "${env.DB_USER}"
+        DB_PASSWORD = "${env.DB_PASSWORD}"
+        TEST_TYPE = "${env.TEST_TYPE}"
+        BUILD_NUMBER = "${env.BUILD_NUMBER}"
+        GIT_COMMIT = "${env.GIT_COMMIT}"
     }
     
     stages {
@@ -70,7 +71,7 @@ pipeline {
                             echo '🔍 DB 스키마 확인 중...'
                             sh 'sleep 5'
                             def tableCount = sh(
-                                script: 'docker exec test-automation-server bash -c "export PGPASSWORD=postgres && psql -h localhost -U postgres -d test_automation -t -c \\"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = \\''public\\'';\\""',
+                                script: "docker exec test-automation-server bash -c 'export PGPASSWORD=postgres && psql -h localhost -U postgres -d test_automation -t -c \"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = \\'public\\';\"'",
                                 returnStatus: true
                             )
                             if (tableCount != 0) {
@@ -96,18 +97,6 @@ pipeline {
                     echo 'Installing dependencies...'
                     sh 'npm install'
                     
-                    // ReportPortal 패키지 설치 확인
-                    def reportportalExists = sh(
-                        script: 'test -d node_modules/@reportportal/agent-js-playwright && exit 0 || exit 1',
-                        returnStatus: true
-                    )
-                    if (reportportalExists != 0) {
-                        echo 'Warning: @reportportal/agent-js-playwright not found, installing...'
-                        sh 'npm install @reportportal/agent-js-playwright'
-                    } else {
-                        echo 'ReportPortal agent already installed'
-                    }
-                    
                     // playwright가 설치되어 있지 않으면 설치
                     def playwrightExists = sh(
                         script: 'test -d node_modules/@playwright/test && exit 0 || exit 1',
@@ -126,18 +115,6 @@ pipeline {
         stage('Run Sanity Tests') {
             steps {
                 script {
-                    // ReportPortal 환경 변수 확인
-                    echo "REPORTPORTAL_ENABLED: ${env.REPORTPORTAL_ENABLED ?: 'NOT SET'}"
-                    echo "REPORTPORTAL_ENDPOINT: ${env.REPORTPORTAL_ENDPOINT ?: 'NOT SET'}"
-                    echo "TEST_TYPE: ${env.TEST_TYPE ?: 'NOT SET (using default: sanity)'}"
-                    if (env.REPORTPORTAL_TOKEN && env.REPORTPORTAL_TOKEN.length() > 20) {
-                        echo "REPORTPORTAL_TOKEN: ${env.REPORTPORTAL_TOKEN.substring(0, 20)}..."
-                    } else if (env.REPORTPORTAL_TOKEN) {
-                        echo "REPORTPORTAL_TOKEN: ${env.REPORTPORTAL_TOKEN} (too short to mask)"
-                    } else {
-                        echo "REPORTPORTAL_TOKEN: NOT SET"
-                    }
-                    
                     try {
                         sh 'npm run test:sanity'
                     } catch (Exception e) {
@@ -218,7 +195,7 @@ pipeline {
                             export DB_PASSWORD=${DB_PASSWORD}
                             export BUILD_NUMBER=${BUILD_NUMBER}
                             export GIT_COMMIT=${GIT_COMMIT}
-                            export TEST_TYPE=${TEST_TYPE:-sanity}
+                            export TEST_TYPE=${TEST_TYPE}
                             node scripts/save-results-to-db.js
                         '''
                         echo "✅ Test results saved to database"
@@ -237,7 +214,6 @@ pipeline {
                             echo "✅ Allure results saved to permanent storage"
                         } catch (Exception e) {
                             echo "⚠️ Could not save Allure results: ${e.message}"
-                            currentBuild.result = currentBuild.result ?: 'UNSTABLE'
                         }
                     } else {
                         echo "⚠️ allure-results directory not found, skipping Allure results permanent storage."
@@ -376,7 +352,7 @@ pipeline {
                         }
                         
                         def message = """Test Status:
-Total Tests: ${totalTests}, Passed: ${passedTests}, Failed: ${failedTests}, Skipped: ${skippedTests} - (<${artifactUrl}|Allure Report>)
+Total Tests: ${totalTests}, Passed: ${passedTests}, Failed: ${failedTests}, Skipped: ${skippedTests} - (<${artifactUrl}|Open>)
 ${testStatus == 'Success' ? '\n:white_check_mark: Success - 모든 테스트 성공' : '\n:red_circle: Fail - 실패한 케이스 확인 필요'}${failureListMessage}"""
                         
                         slackSend(
