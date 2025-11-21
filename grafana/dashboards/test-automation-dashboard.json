@@ -102,18 +102,10 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "thresholds"
+            "mode": "palette-classic"
           },
           "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
+          "unit": "short"
         },
         "overrides": []
       },
@@ -125,10 +117,12 @@
       },
       "id": 2,
       "options": {
-        "displayLabels": ["name", "percent"],
+        "displayLabels": ["name", "value"],
         "legend": {
-          "displayMode": "visible",
-          "placement": "right"
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "values": ["value", "percent"]
         },
         "pieType": "pie",
         "tooltip": {
@@ -141,7 +135,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n  status AS name,\n  COUNT(*) AS count\nFROM test_runs\nGROUP BY status",
+          "rawSql": "SELECT 'Passed' AS name, SUM(passed_tests) AS value FROM test_runs\nUNION ALL\nSELECT 'Failed' AS name, SUM(failed_tests) AS value FROM test_runs\nUNION ALL\nSELECT 'Skipped' AS name, SUM(skipped_tests) AS value FROM test_runs",
           "refId": "A",
           "sql": {
             "columns": [
@@ -294,7 +288,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n  test_name,\n  failure_rate\nFROM test_statistics\nWHERE failure_rate > 0\nORDER BY failure_rate DESC\nLIMIT 10",
+          "rawSql": "SELECT\n  test_name,\n  failure_rate\nFROM test_statistics\nWHERE total_runs > 0\nORDER BY failure_rate DESC\nLIMIT 10",
           "refId": "A",
           "sql": {
             "columns": [
