@@ -66,7 +66,7 @@ JENKINS_URL=http://IP주소:8080
 GRAFANA_URL=http://IP주소:3001
 
 # Database Configuration
-DB_HOST=127.0.0.1
+DB_HOST=IP주소
 DB_PORT=5432
 DB_NAME=test_automation
 DB_USER=postgres
