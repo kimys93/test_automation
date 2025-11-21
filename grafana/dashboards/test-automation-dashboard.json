@@ -73,7 +73,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\n  started_at AS time,\n  total_tests AS \"Total Tests\",\n  passed_tests AS \"Passed\",\n  failed_tests AS \"Failed\"\nFROM test_runs\nORDER BY started_at",
+          "rawSql": "SELECT\n  started_at AS time,\n  total_tests AS \"Total Tests\",\n  passed_tests AS \"Passed\",\n  failed_tests AS \"Failed\",\n  skipped_tests AS \"Skipped\"\nFROM test_runs\nORDER BY started_at",
           "refId": "A",
           "sql": {
             "columns": [
@@ -383,7 +383,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\n  DATE(started_at) AS time,\n  COUNT(*) AS \"Total Runs\",\n  SUM(CASE WHEN status = 'PASSED' THEN 1 ELSE 0 END) AS \"Passed\",\n  SUM(CASE WHEN status = 'FAILED' THEN 1 ELSE 0 END) AS \"Failed\"\nFROM test_runs\nGROUP BY DATE(started_at)\nORDER BY time DESC\nLIMIT 30",
+          "rawSql": "SELECT\n  DATE(started_at) AS time,\n  SUM(total_tests) AS \"Total Tests\",\n  SUM(passed_tests) AS \"Passed\",\n  SUM(failed_tests) AS \"Failed\",\n  SUM(skipped_tests) AS \"Skipped\"\nFROM test_runs\nGROUP BY DATE(started_at)\nORDER BY time DESC\nLIMIT 30",
           "refId": "A",
           "sql": {
             "columns": [
