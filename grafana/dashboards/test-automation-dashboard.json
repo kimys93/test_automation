@@ -102,12 +102,67 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
+            "mode": "thresholds"
           },
           "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
           "unit": "short"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Passed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Failed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Skipped"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 8,
@@ -117,25 +172,25 @@
       },
       "id": 2,
       "options": {
-        "displayLabels": ["name", "value"],
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "showLegend": true,
-          "values": ["value", "percent"]
+        "displayMode": "gradient",
+        "minVizHeight": 10,
+        "minVizWidth": 200,
+        "orientation": "vertical",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
         },
-        "pieType": "pie",
-        "tooltip": {
-          "mode": "single"
-        }
+        "showUnfilled": true
       },
+      "pluginVersion": "8.0.0",
       "targets": [
         {
           "datasource": "PostgreSQL",
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT 'Passed' AS name, SUM(passed_tests) AS value FROM test_runs\nUNION ALL\nSELECT 'Failed' AS name, SUM(failed_tests) AS value FROM test_runs\nUNION ALL\nSELECT 'Skipped' AS name, SUM(skipped_tests) AS value FROM test_runs",
+          "rawSql": "SELECT\n  SUM(passed_tests)::bigint AS \"Passed\",\n  SUM(failed_tests)::bigint AS \"Failed\",\n  SUM(skipped_tests)::bigint AS \"Skipped\"\nFROM test_runs",
           "refId": "A",
           "sql": {
             "columns": [
@@ -157,7 +212,7 @@
         }
       ],
       "title": "Test Status Distribution",
-      "type": "piechart"
+      "type": "bargauge"
     },
     {
       "datasource": "PostgreSQL",
@@ -236,25 +291,36 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "thresholds"
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "bars",
+            "fillOpacity": 100,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false
           },
           "mappings": [],
-          "max": 100,
-          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
                 "color": "green",
                 "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 30
-              },
-              {
-                "color": "red",
-                "value": 70
               }
             ]
           },
@@ -270,25 +336,24 @@
       },
       "id": 4,
       "options": {
-        "displayMode": "gradient",
-        "minVizHeight": 10,
-        "minVizWidth": 0,
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
+        "colorByField": "failure_rate",
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
         },
-        "showUnfilled": true
+        "tooltip": {
+          "mode": "single"
+        },
+        "orientation": "horizontal"
       },
-      "pluginVersion": "8.0.0",
       "targets": [
         {
           "datasource": "PostgreSQL",
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n  test_name,\n  failure_rate\nFROM test_statistics\nWHERE total_runs > 0\nORDER BY failure_rate DESC\nLIMIT 10",
+          "rawSql": "SELECT\n  test_name,\n  failure_rate\nFROM test_statistics\nWHERE total_runs > 0 AND test_name != 'Unknown Test'\nORDER BY failure_rate DESC\nLIMIT 10",
           "refId": "A",
           "sql": {
             "columns": [
@@ -309,8 +374,8 @@
           }
         }
       ],
-      "title": "Test Failure Rate by Test Name",
-      "type": "bargauge"
+      "title": "Test Failure Rate",
+      "type": "barchart"
     },
     {
       "datasource": "PostgreSQL",
