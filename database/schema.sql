@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS test_runs (
     duration_ms BIGINT,
     build_number VARCHAR(100),
     commit_hash VARCHAR(100),
+    report_path VARCHAR(500), -- Playwright HTML 리포트 경로
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

@@ -9,6 +9,7 @@ playwright/.cache/
 allure-results/
 allure-results-permanent/
 allure-report/
+reports/
 
 # Environment variables
 .env

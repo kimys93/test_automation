@@ -72,6 +72,52 @@ pipeline {
             steps {
                 script {
                     if (fileExists('playwright-report') && fileExists('test-results')) {
+                        // 에러 발생 시 리포트 저장
+                        try {
+                            def resultsJson = readJSON file: 'test-results/results.json'
+                            def hasFailedTests = false
+                            
+                            // results.json에서 실패한 테스트 확인
+                            if (resultsJson.containsKey('stats')) {
+                                def stats = resultsJson.stats
+                                if (stats.failed > 0 || stats.timedOut > 0 || stats.interrupted > 0) {
+                                    hasFailedTests = true
+                                }
+                            }
+                            
+                            // 실패한 테스트가 있으면 리포트 저장
+                            if (hasFailedTests) {
+                                def runId = "run-${BUILD_NUMBER}-${GIT_COMMIT.take(8)}"
+                                def testStatus = 'FAILED'
+                                
+                                sh """
+                                    export TEST_TYPE=${TEST_TYPE}
+                                    export TEST_STATUS=${testStatus}
+                                    export RUN_ID=${runId}
+                                    node scripts/save-report.js
+                                """
+                                
+                                // 리포트 경로 읽기
+                                def reportPath = null
+                                try {
+                                    if (fileExists('reports/.last-report-path')) {
+                                        reportPath = readFile('reports/.last-report-path').trim()
+                                    }
+                                } catch (Exception e) {
+                                    echo "⚠️ 리포트 경로 파일 읽기 실패: ${e.getMessage()}"
+                                }
+                                
+                                if (reportPath) {
+                                    env.REPORT_PATH = reportPath
+                                    echo "✅ 에러 발생 시 리포트 저장 완료: ${reportPath}"
+                                } else {
+                                    echo "⚠️ 리포트 경로를 찾을 수 없습니다."
+                                }
+                            }
+                        } catch (Exception e) {
+                            echo "⚠️ 리포트 저장 중 오류: ${e.getMessage()}"
+                        }
+                        
                         sh 'chmod -R 755 playwright-report'
                         sh 'chmod -R 755 test-results'
                         publishHTML([
@@ -83,7 +129,7 @@ pipeline {
                             reportName: 'Playwright Report'
                         ])
                         archiveArtifacts(
-                            artifacts: 'playwright-report/**/*,test-results/**/*',
+                            artifacts: 'playwright-report/**/*,test-results/**/*,reports/**/*',
                             fingerprint: true
                         )
                     }
@@ -98,7 +144,8 @@ pipeline {
             script {
                 if (fileExists('test-results/results.json')) {
                     try {
-                        sh '''
+                        def reportPathEnv = env.REPORT_PATH ?: ""
+                        sh """
                             export DB_HOST=${DB_HOST}
                             export DB_PORT=${DB_PORT}
                             export DB_NAME=${DB_NAME}
@@ -107,8 +154,9 @@ pipeline {
                             export BUILD_NUMBER=${BUILD_NUMBER}
                             export GIT_COMMIT=${GIT_COMMIT}
                             export TEST_TYPE=${TEST_TYPE}
+                            ${reportPathEnv ? "export REPORT_PATH=${reportPathEnv}" : ""}
                             node scripts/save-results-to-db.js
-                        '''
+                        """
                     } catch (Exception e) {
                         // DB 저장 실패 시 무시
                     }

@@ -184,12 +184,19 @@ async function saveResultsToDB() {
     const runId = `run-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const status = failedTests > 0 ? 'FAILED' : (skippedTests > 0 ? 'SKIPPED' : 'PASSED');
 
+    // 리포트 경로 가져오기 (에러 발생 시에만 저장)
+    let reportPath = null;
+    if (failedTests > 0) {
+      // save-report.js에서 저장한 리포트 경로 가져오기
+      reportPath = process.env.REPORT_PATH || null;
+    }
+
     const insertRunQuery = `
       INSERT INTO test_runs (
         run_id, test_type, environment, browser, started_at, finished_at, 
         status, total_tests, passed_tests, failed_tests, skipped_tests, 
-        duration_ms, build_number, commit_hash
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        duration_ms, build_number, commit_hash, report_path
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING id;
     `;
 
@@ -208,7 +215,8 @@ async function saveResultsToDB() {
       skippedTests,
       durationMs,
       buildNumber,
-      gitCommit
+      gitCommit,
+      reportPath
     ]);
 
     const testRunId = runResult.rows[0].id;
