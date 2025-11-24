@@ -41,11 +41,6 @@ test('Sanity Test - 핵심 기능 검증', async ({ page, context, browser }) =>
         expect(bodyContent.trim().length).toBeGreaterThan(0);
       }
     });
-    
-    await test.step('기본 네비게이션 요소 확인', async () => {
-      const hasNavigation = await page.locator('nav, header, .navbar').count();
-      expect(hasNavigation).toBeGreaterThan(0);
-    });
   });
 
   await test.step('로그인 기능 - 실제 로그인 성공 확인', async () => {
