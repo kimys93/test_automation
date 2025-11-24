@@ -1,5 +1,4 @@
 // @ts-check
-// @ts-ignore - @playwright/test 타입 선언이 자동으로 로드됨
 import { test, expect } from '@playwright/test';
 import BasePage from '../pages/BasePage.js';
 import LoginPage from '../pages/LoginPage.js';
