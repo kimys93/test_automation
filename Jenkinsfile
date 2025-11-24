@@ -102,28 +102,37 @@ pipeline {
                         def skippedTests = 0
                         def failedTestList = []
                         
-                        // 테스트 레벨에서 통계만 수집 (ReportPortal에서 상세 정보 확인 가능)
-                        if (resultsJson.containsKey('suites') && resultsJson.suites instanceof List) {
-                            resultsJson.suites.each { suite ->
-                                if (suite.containsKey('specs') && suite.specs instanceof List) {
-                                    suite.specs.each { spec ->
-                                        if (spec.containsKey('tests') && spec.tests instanceof List) {
-                                            spec.tests.each { test ->
-                                                if (test.containsKey('results') && test.results instanceof List) {
-                                                    def finalResult = test.results[test.results.size() - 1]
-                                                    if (finalResult != null) {
-                                                        def resultStatus = finalResult.status ?: 'unknown'
-                                                        def testTitle = test.title ?: spec.title ?: 'Unknown Test'
-                                                        
-                                                        totalTests++
-                                                        
-                                                        if (resultStatus == 'passed') {
-                                                            passedTests++
-                                                        } else if (resultStatus == 'failed' || resultStatus == 'timedout' || resultStatus == 'interrupted') {
-                                                            failedTests++
-                                                            failedTestList.add("• ${testTitle} [${resultStatus.capitalize()}]")
-                                                        } else if (resultStatus == 'skipped') {
-                                                            skippedTests++
+                        // stats 객체에서 기본 통계 가져오기
+                        if (resultsJson.containsKey('stats')) {
+                            def stats = resultsJson.stats
+                            totalTests = stats.expected ?: 0
+                            skippedTests = stats.skipped ?: 0
+                            failedTests = stats.unexpected ?: 0
+                            passedTests = totalTests - failedTests - skippedTests
+                        }
+                        
+                        // 실패한 테스트 목록 수집 (중첩된 suites 구조 처리)
+                        def collectFailedTests = { suites ->
+                            if (suites instanceof List) {
+                                suites.each { suite ->
+                                    // 중첩된 suites 처리
+                                    if (suite.containsKey('suites') && suite.suites instanceof List) {
+                                        collectFailedTests(suite.suites)
+                                    }
+                                    // specs 처리
+                                    if (suite.containsKey('specs') && suite.specs instanceof List) {
+                                        suite.specs.each { spec ->
+                                            if (spec.containsKey('tests') && spec.tests instanceof List) {
+                                                spec.tests.each { test ->
+                                                    if (test.containsKey('results') && test.results instanceof List) {
+                                                        def finalResult = test.results[test.results.size() - 1]
+                                                        if (finalResult != null) {
+                                                            def resultStatus = finalResult.status ?: 'unknown'
+                                                            def testTitle = spec.title ?: 'Unknown Test'
+                                                            
+                                                            if (resultStatus == 'failed' || resultStatus == 'timedout' || resultStatus == 'interrupted') {
+                                                                failedTestList.add("• ${testTitle} [${resultStatus.capitalize()}]")
+                                                            }
                                                         }
                                                     }
                                                 }
@@ -132,6 +141,11 @@ pipeline {
                                     }
                                 }
                             }
+                        }
+                        
+                        // 실패한 테스트 목록 수집
+                        if (resultsJson.containsKey('suites') && resultsJson.suites instanceof List) {
+                            collectFailedTests(resultsJson.suites)
                         }
                         
                         def testStatus = failedTests > 0 || skippedTests > 0 ? 'Fail' : 'Success'
