@@ -180,7 +180,6 @@ test-automation/
 ├── tests-regression/         # Regression Test (전체 기능 검증)
 │   └── regression.spec.js   # 모든 기능 종합 검증
 ├── scripts/                  # 유틸리티 스크립트
-│   └── save-report.js       # 에러 발생 시 리포트 저장
 ├── docker-compose.yml        # Docker Compose 설정
 ├── Jenkinsfile              # Jenkins 파이프라인 (macOS/Linux)
 ├── Jenkinsfile.windows      # Jenkins 파이프라인 (Windows)
