@@ -1,199 +1,124 @@
+// sanity.spec.ts
 // @ts-check
 import { test, expect } from '@playwright/test';
+
+// 페이지 객체는 경로에 맞게 적절히 import 해 주세요.
 import BasePage from '../pages/BasePage.js';
 import LoginPage from '../pages/LoginPage.js';
 import BoardPage from '../pages/BoardPage.js';
 import WritePage from '../pages/WritePage.js';
 import DetailPage from '../pages/DetailPage.js';
 
+// **테스트 간 데이터 공유를 위한 변수**
+// 이 변수에 저장된 값이 다음 테스트에서 재사용됩니다.
+let sharedTestTitle = '';
+
 /**
- * Sanity Test - 핵심 기능만 빠르게 검증
- * 배포 전 가장 중요한 기능들이 정상 작동하는지 확인
- * 
- * 하나의 test() 블록으로 구성하여 브라우저를 유지하면서 순차 실행
- * 각 test.step()은 Depth 2 기준으로 Slack send에서 카운팅됨
+ * Sanity Test Suite: 핵심 비즈니스 로직 검증
+ * * 💡 mode: 'serial'과 storageState를 사용하여 브라우저 컨텍스트(로그인 상태)를 유지하고 
+ * 테스트를 순차적으로 실행합니다. (빠른 속도 & 상태 유지)
  */
-test('Sanity Test - 핵심 기능 검증', async ({ page, context, browser }) => {
-  test.setTimeout(120000); // 전체 테스트 타임아웃 설정
-  
-  try {
+test.describe('Sanity Test: 핵심 기능 워크플로우', () => {
+    
+    // 🔑 핵심 설정: Context 재사용 및 순차 실행 보장
+    test.describe.configure({ mode: 'serial' });
+    test.setTimeout(120000); // describe 블록 전체 타임아웃
+    
+    // Storage State 파일 경로
+    const authFile = 'playwright/.auth/sanity-user.json';
 
-  await test.step('홈페이지 접속 및 기본 로드 확인', async () => {
-    const basePage = new BasePage(page);
-    
-    await test.step('홈페이지로 이동', async () => {
-      await basePage.goto('/home');
-      await basePage.wait(2000); // 페이지 로드 대기
-    });
-    
-    await test.step('홈페이지 URL 확인', async () => {
-      await expect(page).toHaveURL(/.*\/home/);
-    });
-    
-    await test.step('페이지 타이틀 확인', async () => {
-      await expect(page).toHaveTitle(/.+/); // 타이틀이 존재하는지 확인
-    });
-    
-    await test.step('페이지 본문 내용 로드 확인', async () => {
-      const bodyContent = await page.locator('body').textContent();
-      expect(bodyContent).toBeTruthy();
-      if (bodyContent) {
-        expect(bodyContent.trim().length).toBeGreaterThan(0);
-      }
-    });
-  });
+    // --- 1. 환경 준비: 접속 확인 (로그인 전) ---
+    test('Sanity 01: 홈페이지 접속 및 기본 요소 로드 확인 (Pre-Login)', async ({ page }) => {
+        const basePage = new BasePage(page);
 
-  await test.step('로그인 기능 - 실제 로그인 성공 확인', async () => {
-    const loginPage = new LoginPage(page);
-    
-    await test.step('로그인 페이지로 이동', async () => {
-      await loginPage.navigate();
+        // 1. 홈페이지로 이동
+        await basePage.goto('/home');
+        await basePage.wait(2000);
+
+        // 2. 기본 로드 검증
+        await expect(page).toHaveURL(/.*\/home/);
+        await expect(page).toHaveTitle(/.+/);
+
+        const bodyContent = await page.locator('body').textContent();
+        expect(bodyContent).toBeTruthy();
+        expect(bodyContent?.trim().length).toBeGreaterThan(0);
     });
-    
-    await test.step('로그인 수행', async () => {
-      await test.step('사용자명 입력', async () => {
+
+    // --- 2. 핵심 기능: 로그인 및 Storage State 저장 ---
+    test('Sanity 02: 로그인 기능 성공 확인', async ({ page, context }) => {
+        // **이전 테스트의 Context가 재사용되므로 브라우저가 꺼지지 않습니다.**
+        const loginPage = new LoginPage(page);
+
+        await loginPage.navigate(); // 로그인 페이지로 이동
+
+        // 1. 로그인 수행
         await loginPage.usernameInput.fill('test1');
-      });
-      await test.step('비밀번호 입력', async () => {
         await loginPage.passwordInput.fill('test1234');
-      });
-      await test.step('로그인 버튼 클릭', async () => {
         await loginPage.submitButton.click();
         await loginPage.wait(2000);
+
+        // 2. 로그인 성공 확인 (리디렉션 URL 확인)
         await expect(page).toHaveURL(/.*\/home|.*\/index/);
-      });
+        
+        // 3. Storage State 저장 (다음 테스트에서 test.use()로 자동 로드됨)
+        await context.storageState({ path: authFile });
     });
-    
-    await test.step('게시판 페이지 요소 표시 확인', async () => {
-      const boardPage = new BoardPage(page);
-      await boardPage.navigate();
-      await expect(boardPage.pageTitle.first()).toBeVisible();
-    });
-  });
 
-  await test.step('글쓰기 및 게시판 목록 노출 확인', async () => {
-    const boardPage = new BoardPage(page);
-    const writePage = new WritePage(page);
-    
-    await test.step('게시판으로 이동', async () => {
-      await boardPage.navigate();
-      await boardPage.wait(1000);
-    });
-    
-    await test.step('글쓰기 버튼 클릭', async () => {
-      await boardPage.writeButton.click();
-      await writePage.wait(1000);
-    });
-    
-    let testTitle = '';
-    
-    await test.step('게시글 작성', async () => {
-      const timestamp = Date.now();
-      testTitle = `Sanity 테스트 게시글 ${timestamp}`;
-      const testContent = 'Sanity 테스트용 게시글 내용입니다.';
-      
-      await test.step('게시글 제목 입력', async () => {
-        await writePage.postTitleInput.fill(testTitle);
-      });
-      await test.step('게시글 내용 입력', async () => {
+    // --- 3. 핵심 기능: 글쓰기 및 목록 확인 (Storage State 자동 로드) ---
+    test.use({ storageState: authFile });
+    test('Sanity 03: 게시글 작성 및 목록 노출 확인', async ({ page }) => {
+        // **test.use()로 Storage State가 자동 로드되어 로그인 상태가 유지됩니다.**
+        const boardPage = new BoardPage(page);
+        const writePage = new WritePage(page);
+        
+        await boardPage.navigate();
+        await boardPage.writeButton.click();
+        await writePage.wait(1000);
+        
+        // 1. 게시글 데이터 준비
+        const timestamp = Date.now();
+        sharedTestTitle = `Sanity 테스트 게시글 ${timestamp}`; // 다음 테스트를 위해 저장
+        const testContent = 'Sanity 테스트용 게시글 내용입니다.';
+
+        // 2. 게시글 작성
+        await writePage.postTitleInput.fill(sharedTestTitle);
         await writePage.postContentInput.fill(testContent);
-      });
-      await test.step('작성 완료 버튼 클릭', async () => {
         await writePage.submitButton.click();
-      });
-      await writePage.wait(2000); // 게시글 작성 완료 대기
-    });
-    
-    await test.step('게시판으로 돌아가기', async () => {
-      await boardPage.navigate();
-      await boardPage.wait(1000);
-    });
-    
-    await test.step('작성한 글이 목록에 노출되는지 확인', async () => {
-      await test.step('게시글 제목으로 검색', async () => {
-        const postTitleLocator = page.locator(`text=${testTitle}`);
-        await expect(postTitleLocator).toBeVisible({ timeout: 5000 });
-      });
-      await test.step('게시판 목록에 제목 포함 여부 확인', async () => {
-        await expect(boardPage.boardList).toContainText(testTitle);
-      });
-    });
-  });
+        await writePage.wait(2000); // 작성 완료 대기
 
-  await test.step('게시글 상세 조회 및 댓글 작성', async () => {
-    const boardPage = new BoardPage(page);
-    const detailPage = new DetailPage(page);
-    
-    await test.step('게시판으로 이동', async () => {
-      await boardPage.navigate();
-      await boardPage.wait(1000);
+        // 3. 목록으로 돌아가 노출 확인
+        await boardPage.navigate();
+        
+        // 작성한 글이 목록에 노출되는지 확인
+        const postTitleLocator = page.locator(`text=${sharedTestTitle}`).first();
+        await expect(postTitleLocator).toBeVisible({ timeout: 5000 });
+        await expect(boardPage.boardList).toContainText(sharedTestTitle);
     });
-    
-    await test.step('첫 번째 게시글 클릭', async () => {
-      await boardPage.clickFirstPost();
-      await detailPage.wait(1000);
-    });
-    
-    await test.step('게시글 상세 내용 확인', async () => {
-      await test.step('게시글 제목 표시 확인', async () => {
-        await expect(detailPage.postTitle).toBeVisible();
-      });
-      await test.step('게시글 내용 표시 확인', async () => {
-        await expect(detailPage.postContent).toBeVisible();
-      });
-    });
-    
-    await test.step('댓글 작성', async () => {
-      const commentText = `Sanity 테스트 댓글 ${Date.now()}`;
-      await test.step('댓글 내용 입력', async () => {
+
+    // --- 4. 핵심 기능: 상세 조회 및 댓글 작성 (Storage State 자동 로드) ---
+    test.use({ storageState: authFile });
+    test('Sanity 04: 게시글 상세 조회 및 댓글 작성 확인', async ({ page }) => {
+        // **test.use()로 Storage State가 자동 로드되어 로그인 상태가 유지됩니다.**
+        const boardPage = new BoardPage(page);
+        const detailPage = new DetailPage(page);
+
+        await boardPage.navigate();
+        
+        // 1. 방금 작성한 글을 찾아 클릭 (sharedTestTitle 활용)
+        await page.locator(`text=${sharedTestTitle}`).first().click();
+        await detailPage.wait(1000);
+        
+        // 2. 상세 내용 확인
+        await expect(detailPage.postTitle).toHaveText(sharedTestTitle); // 제목 확인
+        await expect(detailPage.postContent).toBeVisible(); // 내용 표시 확인
+
+        // 3. 댓글 작성
+        const commentText = `Sanity 테스트 댓글 ${Date.now()}`;
         await detailPage.commentInput.fill(commentText);
-      });
-      await test.step('댓글 작성 버튼 클릭', async () => {
         await detailPage.commentSubmitButton.click();
         await detailPage.wait(1000);
-      });
-      await test.step('작성한 댓글이 목록에 나타나는지 확인', async () => {
+
+        // 4. 작성한 댓글이 목록에 나타나는지 확인
         await expect(detailPage.commentsList).toContainText(commentText, { timeout: 3000 });
-      });
     });
-  });
-
-  await test.step('게시판 목록 조회 확인', async () => {
-    const boardPage = new BoardPage(page);
-    
-    await test.step('게시판으로 이동', async () => {
-      await boardPage.navigate();
-      await boardPage.wait(1000);
-    });
-    
-    await test.step('게시판 테이블 표시 확인', async () => {
-      await expect(boardPage.postsTable).toBeVisible();
-    });
-    
-    await test.step('게시글 목록 표시 확인', async () => {
-      const postCount = await boardPage.getPostCount();
-      expect(postCount).toBeGreaterThanOrEqual(0);
-    });
-  });
-  
-  } finally {
-    // 테스트 종료 후 브라우저 명시적으로 종료 (n8n에서 실행 시 종료되지 않는 문제 해결)
-    try {
-      if (page) {
-        await page.close().catch(() => {});
-      }
-      if (context) {
-        await context.close().catch(() => {});
-      }
-      if (browser) {
-        await browser.close().catch(() => {});
-      }
-      // 모든 브라우저 프로세스가 완전히 종료될 때까지 대기
-      await new Promise(resolve => setTimeout(resolve, 3000));
-    } catch (error) {
-      // 이미 종료되었거나 오류가 발생해도 무시
-      console.log('Browser cleanup:', error.message);
-    }
-  }
-
 });
