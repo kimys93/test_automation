@@ -62,7 +62,7 @@ test('Sanity Test - 핵심 기능 검증', async ({ page, context, browser }) =>
         await loginPage.usernameInput.fill('test1');
       });
       await test.step('비밀번호 입력', async () => {
-        await loginPage.passwordInput.fill('test1234');
+        await loginPage.passwordInput.fill('test124');
       });
       await test.step('로그인 버튼 클릭', async () => {
         await loginPage.submitButton.click();
