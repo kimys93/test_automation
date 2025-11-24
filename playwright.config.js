@@ -18,6 +18,35 @@ function getReporters() {
     ['json', { outputFile: 'test-results/results.json' }]
   ];
 
+  // ReportPortal 설정 (항상 활성화)
+  if (process.env.RP_TOKEN) {
+    const rpConfig = {
+      token: process.env.RP_TOKEN,
+      endpoint: 'http://localhost:8082/api',
+      project: 'test_automation',
+      launch: process.env.RP_LAUNCH || `test-run-${process.env.BUILD_NUMBER || Date.now()}`,
+      attributes: [
+        {
+          key: 'testType',
+          value: 'sanity'
+        },
+        {
+          key: 'environment',
+          value: 'CI'
+        },
+        {
+          key: 'build',
+          value: process.env.BUILD_NUMBER || 'local'
+        }
+      ],
+      description: `Test run: sanity - Build: ${process.env.BUILD_NUMBER || 'local'}`,
+      mode: 'DEFAULT',
+      debug: false
+    };
+
+    reporters.push(['@reportportal/agent-js-playwright', rpConfig]);
+  }
+
   return reporters;
 }
 
@@ -45,7 +74,7 @@ export default defineConfig({
   /* 공유 설정 */
   use: {
     /* 기본 URL */
-    baseURL: process.env.BASE_URL || 'http://localhost:3000',
+    baseURL: 'http://localhost:3000',
     /* 브라우저 컨텍스트 옵션 */
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',

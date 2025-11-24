@@ -103,7 +103,7 @@ function copyDirectory(src, dest) {
 }
 
 // 스크립트 실행
-const testType = process.env.TEST_TYPE || 'sanity';
+const testType = 'sanity';
 const status = process.env.TEST_STATUS || 'PASSED';
 const runId = process.env.RUN_ID || `run-${Date.now()}`;
 

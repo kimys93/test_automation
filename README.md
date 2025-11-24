@@ -1,21 +1,19 @@
-<<<<<<< HEAD
 # Playwright 테스트 자동화 프로젝트
 
-게시판 애플리케이션을 위한 Playwright 테스트 자동화 프로젝트입니다. Jenkins CI/CD 파이프라인, PostgreSQL 데이터베이스, Grafana 대시보드를 통합한 완전한 테스트 자동화 시스템입니다.
+게시판 애플리케이션을 위한 Playwright 테스트 자동화 프로젝트입니다. Jenkins CI/CD 파이프라인과 ReportPortal을 통합한 완전한 테스트 자동화 시스템입니다.
 
 ## 주요 기능
 
 - ✅ **Playwright 기반 E2E 테스트**: 안정적이고 빠른 테스트 실행
 - ✅ **CI/CD 통합**: Jenkins를 통한 자동화된 테스트 실행
-- ✅ **데이터 영속성**: PostgreSQL에 테스트 결과 저장 및 히스토리 관리
-- ✅ **시각화 대시보드**: Grafana를 통한 실시간 테스트 결과 모니터링
+- ✅ **ReportPortal 통합**: 중앙화된 테스트 결과 관리 및 시각화
 - ✅ **알림 시스템**: Slack을 통한 테스트 결과 알림 및 리포트 링크 제공
 - ✅ **Page Object Model**: 유지보수 가능한 테스트 코드 구조
 
 ## 시스템 아키텍처
 
 ```
-개발자 → GitHub → Jenkins → Playwright → PostgreSQL → Grafana
+개발자 → GitLab → Jenkins → Playwright → ReportPortal
                                               ↓
                                           Slack 알림
 ```
@@ -25,7 +23,7 @@
 ### 1. 프로젝트 클론 및 의존성 설치
 
 ```bash
-git clone https://github.com/kimys93/test_automation.git
+git clone http://gitlab.ngle.co.kr/platformqa/macaron/test_automation.git
 cd test_automation
 npm install
 ```
@@ -43,39 +41,24 @@ docker compose up -d
 ```
 
 이 명령은 다음 서비스를 시작합니다:
-- **PostgreSQL** (포트: 5432): 테스트 결과 저장
-- **Grafana** (포트: 3001): 대시보드 시각화
+- **ReportPortal UI** (포트: 8082): 테스트 결과 시각화
+- **ReportPortal Gateway** (포트: 8082): UI 및 API 게이트웨이
+- **ReportPortal DB** (포트: 5432): 데이터베이스
 
 ### 4. 환경 변수 설정
 
-`.env.example` 파일을 참고하여 `.env` 파일을 생성하세요:
+모든 설정은 코드에 하드코딩되어 있습니다. `.env` 파일은 필요하지 않습니다.
 
-```bash
-cp .env.example .env
-```
-
-`.env` 파일 편집:
-
-```env
-# Base URL for test server
-BASE_URL=http://IP주소:3000
-
-# Jenkins URL (for Playwright Report links in Slack)
-JENKINS_URL=http://IP주소:8080
-
-# Grafana URL (for Dashboard links in Slack)
-GRAFANA_URL=http://IP주소:3001
-
-# Database Configuration
-DB_HOST=IP주소
-DB_PORT=5432
-DB_NAME=test_automation
-DB_USER=postgres
-DB_PASSWORD=postgres
-
-# Test Type (sanity, regression, etc.)
-TEST_TYPE=sanity
-```
+**하드코딩된 설정:**
+- `BASE_URL`: `http://localhost:3000`
+- `JENKINS_URL`: `http://localhost:8080`
+- `TEST_TYPE`: `sanity`
+- `RP_ENDPOINT`: `http://localhost:8082/api`
+- `RP_ENABLED`: `true` (항상 활성화)
+- `RP_PROJECT`: `test_automation` (고정 프로젝트명)
+- `RP_LAUNCH`: `test-run-${BUILD_NUMBER}` (빌드 번호 기반)
+- `RP_DEBUG`: `false` (디버그 모드 비활성화)
+- `RP_TOKEN`: Jenkins Credential로 관리 (credential ID: `reportportal-token`)
 
 ## 테스트 실행
 
@@ -126,12 +109,50 @@ npm run test:report
 Jenkins에서 자동으로 다음 단계를 실행합니다:
 
 1. **Checkout**: Git 저장소에서 코드 체크아웃
-2. **Start Server**: Docker Compose로 PostgreSQL 및 Grafana 시작
-3. **Install Dependencies**: npm 패키지 설치
-4. **Run Sanity Tests**: Playwright 테스트 실행
-5. **Process Test Results**: 테스트 결과 처리 및 HTML 리포트 생성
-6. **Save Results to DB**: PostgreSQL에 테스트 결과 저장
-7. **Send Slack Notification**: Slack에 테스트 결과 및 링크 전송
+2. **Install Dependencies**: npm 패키지 설치
+3. **Run Sanity Tests**: Playwright 테스트 실행
+4. **Process Test Results**: 테스트 결과 처리 및 HTML 리포트 생성
+5. **Send Slack Notification**: Slack에 테스트 결과 및 링크 전송
+
+### ReportPortal 통합
+
+ReportPortal은 테스트 결과를 중앙에서 관리하고 시각화하는 플랫폼입니다.
+
+#### ReportPortal 시작하기
+
+1. **Docker Compose로 ReportPortal 시작**:
+```bash
+docker compose up -d reportportal
+```
+
+2. **ReportPortal 접속**:
+   - UI: `http://localhost:8082`
+   - 기본 계정: `default/1q2w3e` (첫 접속 시 변경 필요)
+
+3. **프로젝트 및 사용자 생성**:
+   - ReportPortal UI에서 프로젝트 생성
+   - 사용자 생성 및 API Token 발급
+
+4. **Jenkins Credential 설정**:
+     - Jenkins 관리 → Credentials → System → Global credentials → Add Credentials
+     - Type: Secret text
+     - Secret: ReportPortal API Token
+     - ID: `reportportal-token`
+
+5. **테스트 실행**:
+```bash
+npm run test:sanity
+```
+
+테스트 결과가 자동으로 ReportPortal에 전송됩니다.
+
+#### ReportPortal 장점
+
+- ✅ 중앙화된 테스트 결과 관리
+- ✅ 실시간 대시보드 및 분석
+- ✅ 자동화된 리포트 생성
+- ✅ 이슈 추적 및 관리
+- ✅ 히스토리 추적 및 트렌드 분석
 
 ## 프로젝트 구조
 
@@ -159,17 +180,8 @@ test-automation/
 ├── tests-regression/         # Regression Test (전체 기능 검증)
 │   └── regression.spec.js   # 모든 기능 종합 검증
 ├── scripts/                  # 유틸리티 스크립트
-│   └── save-results-to-db.js # 테스트 결과를 DB에 저장
-├── database/                 # 데이터베이스 스키마
-│   └── schema.sql           # PostgreSQL 스키마 정의
-├── grafana/                  # Grafana 설정
-│   ├── dashboards/          # 대시보드 정의
-│   │   └── test-automation-dashboard.json
-│   └── provisioning/        # 프로비저닝 설정
-│       ├── datasources/     # 데이터소스 설정
-│       └── dashboards/      # 대시보드 프로비저닝
+│   └── save-report.js       # 에러 발생 시 리포트 저장
 ├── docker-compose.yml        # Docker Compose 설정
-├── Dockerfile.server         # PostgreSQL 서버 Dockerfile
 ├── Jenkinsfile              # Jenkins 파이프라인 (macOS/Linux)
 ├── Jenkinsfile.windows      # Jenkins 파이프라인 (Windows)
 ├── playwright.config.js      # Playwright 설정
@@ -185,50 +197,6 @@ test-automation/
 - **가독성**: 테스트 코드가 더 간결하고 읽기 쉬움
 - **확장성**: 새로운 페이지 추가가 용이
 
-## 데이터베이스
-
-### 스키마
-
-PostgreSQL 데이터베이스는 다음 테이블로 구성됩니다:
-
-- **test_runs**: 테스트 실행 정보 (run_id, test_type, status, 통계 등)
-- **test_cases**: 개별 테스트 케이스 정보 (test_name, status, error_message, steps 등)
-- **test_statistics**: 테스트 통계 뷰 (테스트별 실패율 등)
-
-### 데이터 저장
-
-테스트 실행 후 `scripts/save-results-to-db.js` 스크립트가 자동으로:
-- `test_runs` 테이블에 실행 정보 저장
-- `test_cases` 테이블에 각 테스트 케이스 정보 저장 (depth2 step 기준)
-- `test_statistics` 뷰를 통해 통계 정보 제공
-
-## Grafana 대시보드
-
-### 접근 방법
-
-1. Docker Compose로 서비스 시작:
-   ```bash
-   docker compose up -d
-   ```
-
-2. Grafana 접속:
-   - URL: `http://IP주소:3001`
-   - 기본 계정: `admin` / `admin`
-
-3. 대시보드 확인:
-   - 좌측 메뉴 → Dashboards → Test Automation Dashboard
-
-### 대시보드 패널
-
-1. **Test Runs Over Time**: 시간별 테스트 실행 추이
-2. **Test Status Distribution**: 전체 테스트 상태 분포 (Passed/Failed/Skipped)
-3. **Recent Test Runs**: 최근 테스트 실행 목록
-4. **Test Failure Rate**: 테스트별 실패율 (Bar Chart)
-5. **Daily Test Statistics**: 일별 테스트 통계
-6. **Failed Test Error Logs**: 실패한 테스트의 상세 에러 정보
-
-자세한 설정 방법은 [GRAFANA_SETUP.md](./GRAFANA_SETUP.md)를 참고하세요.
-
 ## Jenkins 설정
 
 ### 환경 변수 설정
@@ -236,13 +204,10 @@ PostgreSQL 데이터베이스는 다음 테이블로 구성됩니다:
 Jenkins 관리 → 시스템 설정 → Global properties → Environment variables에서 다음 변수를 설정해야 합니다:
 
 - **JENKINS_URL**: `http://IP주소:8080` (Jenkins 서버 주소)
-- **GRAFANA_URL**: `http://IP주소:3001` (Grafana 서버 주소)
-- **DB_HOST**: `127.0.0.1` (또는 Docker 네트워크 내부 주소)
-- **DB_PORT**: `5432`
-- **DB_NAME**: `test_automation`
-- **DB_USER**: `postgres`
-- **DB_PASSWORD**: `postgres`
 - **TEST_TYPE**: `sanity` (또는 `regression`)
+- **RP_ENDPOINT**: `http://localhost:8082/api` (ReportPortal API 주소 - Traefik Gateway를 통해 접근)
+- **RP_TOKEN**: Jenkins Credential로 관리 (Credential ID: `reportportal-token`)
+- **참고**: `RP_ENABLED`와 `RP_PROJECT`는 코드에 하드코딩되어 있습니다 (항상 활성화, 프로젝트명: `test_automation`)
 
 자세한 설정 방법은 [JENKINS_SETUP.md](./JENKINS_SETUP.md)를 참고하세요.
 
@@ -259,7 +224,6 @@ Slack 워크스페이스에 Jenkins 앱을 추가하고 토큰을 설정해야 �
 테스트 실행 후 Slack에 다음 정보가 전송됩니다:
 
 - 테스트 결과 요약 (Total, Passed, Failed, Skipped)
-- Grafana 대시보드 링크
 - Playwright Report 링크
 - 실패한 테스트 목록 (있는 경우)
 
@@ -351,7 +315,6 @@ module.exports = NewPage;
 
 ## 문서
 
-- [GRAFANA_SETUP.md](./GRAFANA_SETUP.md): Grafana 대시보드 설정 가이드
 - [JENKINS_SETUP.md](./JENKINS_SETUP.md): Jenkins CI/CD 파이프라인 설정 가이드
 - [SLACK_SETUP.md](./SLACK_SETUP.md): Slack 알림 설정 가이드
 
@@ -359,13 +322,8 @@ module.exports = NewPage;
 
 - **Testing Framework**: Playwright
 - **CI/CD**: Jenkins
-- **Database**: PostgreSQL 15
-- **Visualization**: Grafana
+- **Test Management**: ReportPortal
 - **Notification**: Slack
 - **Container**: Docker & Docker Compose
 - **Language**: JavaScript (Node.js)
-- **Version Control**: Git (GitHub, GitLab)
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
->>>>>>> 63a4cf1180b759b939bc8b90dae2862b3ec81698
+- **Version Control**: Git (GitLab)

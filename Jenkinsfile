@@ -11,17 +11,14 @@ pipeline {
         // Jenkins 관리 → 시스템 설정 → Global properties → Environment variables
         // Name: JENKINS_URL, Value: http://IP 주소:포트
         JENKINS_URL = "${env.JENKINS_URL}"
-        GRAFANA_URL = "${env.GRAFANA_URL}"
-        
-        // DB 설정 (Jenkins 시스템 설정의 환경 변수에서 가져옴)
-        DB_HOST = "${env.DB_HOST}"
-        DB_PORT = "${env.DB_PORT}"
-        DB_NAME = "${env.DB_NAME}"
-        DB_USER = "${env.DB_USER}"
-        DB_PASSWORD = "${env.DB_PASSWORD}"
         TEST_TYPE = "${env.TEST_TYPE}"
         BUILD_NUMBER = "${env.BUILD_NUMBER}"
         GIT_COMMIT = "${env.GIT_COMMIT}"
+        
+        // ReportPortal 설정
+        RP_ENDPOINT = "${env.RP_ENDPOINT ?: 'http://localhost:8082/api'}"
+        // RP_TOKEN은 Jenkins Credential로 관리 (credential ID: 'reportportal-token')
+        // RP_ENABLED, RP_PROJECT, RP_LAUNCH, RP_DEBUG는 코드에 하드코딩됨
     }
     
     stages {
@@ -34,20 +31,6 @@ pipeline {
             }
         }
         
-        stage('Start Server') {
-            steps {
-                script {
-                    def serverRunning = sh(
-                        script: 'docker ps --filter "name=test-automation-server" --filter "status=running" --format "{{.Names}}" | grep -q "test-automation-server" && exit 0 || exit 1',
-                        returnStatus: true
-                    )
-                    if (serverRunning != 0) {
-                        sh 'docker compose up -d --build server'
-                        sh 'sleep 20'
-                    }
-                }
-            }
-        }
         
         stage('Install Dependencies') {
             steps {
@@ -60,7 +43,21 @@ pipeline {
             steps {
                 script {
                     try {
-                        sh 'npm run test:sanity'
+                        // ReportPortal credential 사용
+                        withCredentials([string(credentialsId: 'reportportal-token', variable: 'RP_TOKEN')]) {
+                            sh """
+                                export RP_ENABLED=true
+                                export RP_ENDPOINT=http://localhost:8082/api
+                                export RP_TOKEN=${RP_TOKEN}
+                                export RP_PROJECT=test_automation
+                                export RP_LAUNCH=test-run-${BUILD_NUMBER}
+                                export RP_DEBUG=false
+                                export TEST_TYPE=sanity
+                                export BUILD_NUMBER=${BUILD_NUMBER}
+                                export BASE_URL=http://localhost:3000
+                                npm run test:sanity
+                            """
+                        }
                     } catch (Exception e) {
                         currentBuild.result = 'UNSTABLE'
                     }
@@ -91,7 +88,7 @@ pipeline {
                                 def testStatus = 'FAILED'
                                 
                                 sh """
-                                    export TEST_TYPE=${TEST_TYPE}
+                                    export TEST_TYPE=sanity
                                     export TEST_STATUS=${testStatus}
                                     export RUN_ID=${runId}
                                     node scripts/save-report.js
@@ -143,24 +140,6 @@ pipeline {
         always {
             script {
                 if (fileExists('test-results/results.json')) {
-                    try {
-                        def reportPathEnv = env.REPORT_PATH ?: ""
-                        sh """
-                            export DB_HOST=${DB_HOST}
-                            export DB_PORT=${DB_PORT}
-                            export DB_NAME=${DB_NAME}
-                            export DB_USER=${DB_USER}
-                            export DB_PASSWORD=${DB_PASSWORD}
-                            export BUILD_NUMBER=${BUILD_NUMBER}
-                            export GIT_COMMIT=${GIT_COMMIT}
-                            export TEST_TYPE=${TEST_TYPE}
-                            ${reportPathEnv ? "export REPORT_PATH=${reportPathEnv}" : ""}
-                            node scripts/save-results-to-db.js
-                        """
-                    } catch (Exception e) {
-                        // DB 저장 실패 시 무시
-                    }
-                    
                     try {
                         def resultsJson = readJSON file: 'test-results/results.json'
                         def totalTests = 0
@@ -282,10 +261,8 @@ pipeline {
                         }
                         
                         def testStatus = failedTests > 0 || skippedTests > 0 ? 'Fail' : 'Success'
-                        // Grafana 대시보드 URL 설정 (Jenkins 환경 변수에서 가져옴)
-                        def grafanaUrl = env.GRAFANA_URL
                         // Playwright Report URL 설정 (Jenkins HTML Publisher 플러그인으로 생성된 리포트)
-                        def jenkinsUrl = env.JENKINS_URL
+                        def jenkinsUrl = 'http://localhost:8080'
                         def jobName = env.JOB_NAME ?: 'test_automation'
                         def buildNumber = env.BUILD_NUMBER ?: '1'
                         def playwrightReportUrl = "${jenkinsUrl}/job/${jobName}/${buildNumber}/Playwright_20Report/"
@@ -298,7 +275,7 @@ pipeline {
                         
                         def message = """Test Status:
 Total Tests: ${totalTests}, Passed: ${passedTests}, Failed: ${failedTests}, Skipped: ${skippedTests}
-📊 <${grafanaUrl}|Grafana Dashboard> | 📋 <${playwrightReportUrl}|Playwright Report>
+📋 <${playwrightReportUrl}|Playwright Report>
 ${testStatus == 'Success' ? '\n:white_check_mark: Success - 모든 테스트 성공' : '\n:red_circle: Fail - 실패한 케이스 확인 필요'}${failureListMessage}"""
                         
                         slackSend(

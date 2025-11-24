@@ -23,6 +23,7 @@
   "license": "MIT",
   "devDependencies": {
     "@playwright/test": "^1.40.0",
+    "@reportportal/agent-js-playwright": "^5.3.2",
     "@types/node": "^24.10.1",
     "dotenv": "^17.2.3"
   },
