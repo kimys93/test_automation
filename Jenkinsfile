@@ -28,8 +28,7 @@ pipeline {
         stage('Checkout') {
             steps {
                 // GitLab 저장소에서 체크아웃 (Jenkins Credentials에 'gitlab-credentials' ID로 저장 필요)
-                // HTTPS 사용 (HTTP는 GitLab에서 권장하지 않음)
-                git url: 'https://gitlab.ngle.co.kr/platformqa/macaron/test_automation.git', 
+                git url: 'http://gitlab.ngle.co.kr/platformqa/macaron/test_automation.git', 
                      branch: 'main',
                      credentialsId: 'gitlab-credentials'
             }
