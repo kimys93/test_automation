@@ -33,8 +33,38 @@ pipeline {
         
         stage('Start Server') {
             steps {
-                bat 'docker compose up -d --build server'
-                bat 'timeout /t 20 /nobreak'
+                script {
+                    def serverRunning = bat(
+                        script: '@echo off && docker ps --filter "name=test-automation-server" --filter "status=running" --format "{{.Names}}" | findstr /C:"test-automation-server" >nul && exit /b 0 || exit /b 1',
+                        returnStatus: true
+                    )
+                    if (serverRunning != 0) {
+                        bat 'docker compose up -d --build server'
+                        // PostgreSQL이 준비될 때까지 대기 (최대 30초)
+                        def maxRetries = 15
+                        def retryCount = 0
+                        def dbReady = false
+                        while (retryCount < maxRetries && !dbReady) {
+                            sleep(time: 2, unit: 'SECONDS')
+                            def dbCheck = bat(
+                                script: "@echo off && docker exec test-automation-server pg_isready -U postgres >nul 2>&1 && exit /b 0 || exit /b 1",
+                                returnStatus: true
+                            )
+                            if (dbCheck == 0) {
+                                dbReady = true
+                                echo "✅ PostgreSQL이 준비되었습니다."
+                            } else {
+                                retryCount++
+                                echo "⏳ PostgreSQL 대기 중... (${retryCount}/${maxRetries})"
+                            }
+                        }
+                        if (!dbReady) {
+                            echo "⚠️ PostgreSQL 준비 대기 시간 초과, 계속 진행합니다."
+                        }
+                    } else {
+                        echo "✅ 서버가 이미 실행 중입니다."
+                    }
+                }
             }
         }
         
@@ -91,19 +121,22 @@ pipeline {
             script {
                 if (fileExists('test-results/results.json')) {
                     try {
+                        // Windows에서 환경 변수 명시적 전달
                         bat """
-                            set DB_HOST=%DB_HOST%
-                            set DB_PORT=%DB_PORT%
-                            set DB_NAME=%DB_NAME%
-                            set DB_USER=%DB_USER%
-                            set DB_PASSWORD=%DB_PASSWORD%
-                            set BUILD_NUMBER=%BUILD_NUMBER%
-                            set GIT_COMMIT=%GIT_COMMIT%
-                            set TEST_TYPE=%TEST_TYPE%
+                            @echo off
+                            set DB_HOST=${DB_HOST}
+                            set DB_PORT=${DB_PORT}
+                            set DB_NAME=${DB_NAME}
+                            set DB_USER=${DB_USER}
+                            set DB_PASSWORD=${DB_PASSWORD}
+                            set BUILD_NUMBER=${BUILD_NUMBER}
+                            set GIT_COMMIT=${GIT_COMMIT}
+                            set TEST_TYPE=${TEST_TYPE}
                             node scripts/save-results-to-db.js
                         """
                     } catch (Exception e) {
                         // DB 저장 실패 시 무시
+                        echo "DB 저장 실패: ${e.getMessage()}"
                     }
                     
                     try {
