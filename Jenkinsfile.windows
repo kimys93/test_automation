@@ -11,7 +11,7 @@ pipeline {
         // JENKINS_URL: http://localhost:8080
         // BASE_URL: http://localhost:3000
         // TEST_TYPE: sanity
-        // RP_ENDPOINT: http://localhost:8082/api
+        // RP_ENDPOINT: http://localhost:8082/api/v1
         // RP_TOKEN은 Jenkins Credential로 관리 (credential ID: 'reportportal-token')
     }
     
@@ -41,7 +41,7 @@ pipeline {
                             bat """
                                 @echo off
                                 set RP_ENABLED=true
-                                set RP_ENDPOINT=http://localhost:8082/api
+                                set RP_ENDPOINT=http://localhost:8082/api/v1
                                 set RP_TOKEN=%RP_TOKEN%
                                 set RP_PROJECT=test_automation
                                 set RP_LAUNCH=test-run-${BUILD_NUMBER}

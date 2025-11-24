@@ -26,7 +26,7 @@ function getReporters() {
     
     const rpConfig = {
       token: process.env.RP_TOKEN, // Jenkins Credential에서만 가져옴 (필수)
-      endpoint: 'http://localhost:8082/api', // Hardcoded
+      endpoint: 'http://localhost:8082/api/v1', // Hardcoded (ReportPortal API v1 경로)
       project: 'test_automation', // Hardcoded
       launch: launchName, // Hardcoded (Date.now() 기반)
       attributes: [

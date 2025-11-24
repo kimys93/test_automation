@@ -16,7 +16,7 @@ pipeline {
         GIT_COMMIT = "${env.GIT_COMMIT}"
         
         // ReportPortal 설정
-        RP_ENDPOINT = "${env.RP_ENDPOINT ?: 'http://localhost:8082/api'}"
+        RP_ENDPOINT = "${env.RP_ENDPOINT ?: 'http://localhost:8082/api/v1'}"
         // RP_TOKEN은 Jenkins Credential로 관리 (credential ID: 'reportportal-token')
         // RP_ENABLED, RP_PROJECT, RP_LAUNCH, RP_DEBUG는 코드에 하드코딩됨
     }
@@ -47,7 +47,7 @@ pipeline {
                         withCredentials([string(credentialsId: 'reportportal-token', variable: 'RP_TOKEN')]) {
                             sh """
                                 export RP_ENABLED=true
-                                export RP_ENDPOINT=http://localhost:8082/api
+                                export RP_ENDPOINT=http://localhost:8082/api/v1
                                 export RP_TOKEN=${RP_TOKEN}
                                 export RP_PROJECT=test_automation
                                 export RP_LAUNCH=test-run-${BUILD_NUMBER}
