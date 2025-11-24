@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Playwright 테스트 자동화 프로젝트
 
 게시판 애플리케이션을 위한 Playwright 테스트 자동화 프로젝트입니다. Jenkins CI/CD 파이프라인, PostgreSQL 데이터베이스, Grafana 대시보드를 통합한 완전한 테스트 자동화 시스템입니다.
@@ -363,4 +364,8 @@ module.exports = NewPage;
 - **Notification**: Slack
 - **Container**: Docker & Docker Compose
 - **Language**: JavaScript (Node.js)
-- **Version Control**: Git (GitHub)
+- **Version Control**: Git (GitHub, GitLab)
+
+## Project status
+If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+>>>>>>> 63a4cf1180b759b939bc8b90dae2862b3ec81698
