@@ -1,4 +1,5 @@
 // @ts-check
+// @ts-ignore - @playwright/test 타입 선언이 자동으로 로드됨
 import { test, expect } from '@playwright/test';
 import LoginPage from '../pages/LoginPage.js';
 
@@ -37,15 +38,13 @@ test.describe('로그인 기능', () => {
 
   test('로그인 시도 (실제 계정 정보 필요)', async ({ page }) => {
     // 실제 테스트 계정 정보로 변경 필요
-    const username = 'testuser';
-    const password = 'testpass';
+    const username = 'test1';
+    const password = 'test1234';
     
     await loginPage.login(username, password);
     
-    // 로그인 성공/실패에 따른 처리
-    // 성공 시: 메인 페이지로 이동 또는 특정 요소 표시
-    // 실패 시: 에러 메시지 표시
-    await loginPage.wait(2000);
+    // 로그인 성공 시 홈페이지 또는 게시판으로 이동
+    await expect(page).toHaveURL(/.*\/home|.*\/index/, { timeout: 5000 });
   });
 
   test('회원가입 링크 클릭', async ({ page }) => {
@@ -56,4 +55,3 @@ test.describe('로그인 기능', () => {
     await expect(page).toHaveURL(/.*register/);
   });
 });
-

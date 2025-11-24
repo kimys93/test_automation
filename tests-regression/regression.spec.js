@@ -1,12 +1,13 @@
 // @ts-check
+// @ts-ignore - @playwright/test 타입 선언이 자동으로 로드됨
 import { test, expect } from '@playwright/test';
 import LoginPage from '../pages/LoginPage.js';
 import BoardPage from '../pages/BoardPage.js';
 import WritePage from '../pages/WritePage.js';
 import RegisterPage from '../pages/RegisterPage.js';
 import DetailPage from '../pages/DetailPage.js';
-import ChatPage from '../pages/ChatPage.js';
-import NotificationPage from '../pages/NotificationPage.js';
+import ReservationPage from '../pages/ReservationPage.js';
+import BasePage from '../pages/BasePage.js';
 
 /**
  * Regression Test - 전체 기능 회귀 테스트
@@ -43,100 +44,13 @@ test.describe('Regression Test - 전체 기능 검증', () => {
       await loginPage.registerLink.click();
       await expect(page).toHaveURL(/.*register/);
     });
-  });
 
-  // 게시판 관련 테스트
-  test.describe('게시판 기능', () => {
-    test('게시판 페이지 로드', async ({ page }) => {
-      const boardPage = new BoardPage(page);
-      await boardPage.navigate();
+    test('로그인 성공', async ({ page }) => {
+      const loginPage = new LoginPage(page);
+      await loginPage.navigate();
+      await loginPage.login('test1', 'test1234');
       
-      await expect(boardPage.pageTitle).toContainText('게시판');
-      await expect(boardPage.postsTable).toBeVisible();
-    });
-
-    test('게시글 목록 표시', async ({ page }) => {
-      const boardPage = new BoardPage(page);
-      await boardPage.navigate();
-      
-      await expect(boardPage.postsTable).toBeVisible();
-      await expect(boardPage.tableHeader).toContainText('번호');
-      await expect(boardPage.tableHeader).toContainText('제목');
-    });
-
-    test('검색 타입 선택', async ({ page }) => {
-      const boardPage = new BoardPage(page);
-      await boardPage.navigate();
-      
-      await boardPage.searchType.selectOption('content');
-      await expect(boardPage.searchType).toHaveValue('content');
-      
-      await boardPage.searchType.selectOption('author');
-      await expect(boardPage.searchType).toHaveValue('author');
-    });
-
-    test('검색 기능', async ({ page }) => {
-      const boardPage = new BoardPage(page);
-      await boardPage.navigate();
-      
-      await boardPage.search('테스트');
-    });
-
-    test('글쓰기 페이지 이동', async ({ page }) => {
-      const boardPage = new BoardPage(page);
-      await boardPage.navigate();
-      
-      await boardPage.writeButton.click();
-      await expect(page).toHaveURL(/.*write/);
-    });
-  });
-
-  // 글쓰기 관련 테스트
-  test.describe('글쓰기 기능', () => {
-    test('글쓰기 페이지 로드', async ({ page }) => {
-      const writePage = new WritePage(page);
-      await writePage.navigate();
-      
-      await expect(writePage.postTitleInput).toBeVisible();
-      await expect(writePage.postContentInput).toBeVisible();
-    });
-
-    test('제목 입력 및 글자 수 확인', async ({ page }) => {
-      const writePage = new WritePage(page);
-      await writePage.navigate();
-      
-      const title = '테스트 게시글 제목';
-      await writePage.postTitleInput.fill(title);
-      
-      await expect(writePage.postTitleInput).toHaveValue(title);
-      await expect(writePage.titleCount).toContainText(title.length.toString());
-    });
-
-    test('내용 입력 및 글자 수 확인', async ({ page }) => {
-      const writePage = new WritePage(page);
-      await writePage.navigate();
-      
-      const content = '테스트 게시글 내용입니다.';
-      await writePage.postContentInput.fill(content);
-      
-      await expect(writePage.postContentInput).toHaveValue(content);
-      await expect(writePage.contentCount).toContainText(content.length.toString());
-    });
-
-    test('파일 업로드 입력', async ({ page }) => {
-      const writePage = new WritePage(page);
-      await writePage.navigate();
-      
-      await expect(writePage.fileInput).toBeVisible();
-      await expect(writePage.fileInput).toHaveAttribute('accept', 'image/*');
-    });
-
-    test('취소 버튼', async ({ page }) => {
-      const writePage = new WritePage(page);
-      await writePage.navigate();
-      
-      await writePage.cancelButton.click();
-      await writePage.wait(500);
+      await expect(page).toHaveURL(/.*\/home|.*\/index/);
     });
   });
 
@@ -147,8 +61,8 @@ test.describe('Regression Test - 전체 기능 검증', () => {
       await registerPage.navigate();
       
       await expect(registerPage.usernameInput).toBeVisible();
-      await expect(registerPage.emailInput).toBeVisible();
       await expect(registerPage.passwordInput).toBeVisible();
+      await expect(registerPage.emailInput).toBeVisible();
     });
 
     test('회원가입 폼 입력', async ({ page }) => {
@@ -156,160 +70,161 @@ test.describe('Regression Test - 전체 기능 검증', () => {
       await registerPage.navigate();
       
       await registerPage.usernameInput.fill('newuser');
+      await registerPage.passwordInput.fill('newpass123');
+      await registerPage.confirmPasswordInput.fill('newpass123');
+      await registerPage.nameInput.fill('New User');
       await registerPage.emailInput.fill('newuser@test.com');
-      await registerPage.passwordInput.fill('password123');
+      await registerPage.genderM.check();
+      await registerPage.phoneInput.fill('010-1234-5678');
       
       await expect(registerPage.usernameInput).toHaveValue('newuser');
       await expect(registerPage.emailInput).toHaveValue('newuser@test.com');
     });
   });
 
-  // 채팅 관련 테스트
-  test.describe('채팅 기능', () => {
-    test('채팅 페이지 로드', async ({ page }) => {
+  // 게시판 관련 테스트
+  test.describe('게시판 기능', () => {
+    test.beforeEach(async ({ page }) => {
       const loginPage = new LoginPage(page);
-      const chatPage = new ChatPage(page);
-      
       await loginPage.navigate();
       await loginPage.login('test1', 'test1234');
-      await chatPage.wait(2000);
-      await chatPage.navigate();
-      
-      await expect(chatPage.pageTitle).toBeVisible();
-      await expect(chatPage.chatList).toBeVisible();
     });
 
-    test('채팅방 목록 표시', async ({ page }) => {
-      const loginPage = new LoginPage(page);
-      const chatPage = new ChatPage(page);
-      
-      await loginPage.navigate();
-      await loginPage.login('test1', 'test1234');
-      await chatPage.wait(2000);
-      await chatPage.navigate();
-      
-      await expect(chatPage.chatList).toBeVisible();
-    });
-
-    test('메시지 전송 기능', async ({ page }) => {
-      const loginPage = new LoginPage(page);
-      const chatPage = new ChatPage(page);
-      
-      await loginPage.navigate();
-      await loginPage.login('test1', 'test1234');
-      await chatPage.wait(2000);
-      await chatPage.navigate();
-      
-      const chatRoomsCount = await chatPage.chatRooms.count();
-      if (chatRoomsCount > 0) {
-        await chatPage.chatRooms.first().click();
-        await chatPage.wait(500);
-        
-        await expect(chatPage.messageInput).toBeVisible();
-        await chatPage.sendMessage('테스트 메시지');
-      }
-    });
-
-    test('채팅방 검색', async ({ page }) => {
-      const loginPage = new LoginPage(page);
-      const chatPage = new ChatPage(page);
-      
-      await loginPage.navigate();
-      await loginPage.login('test1', 'test1234');
-      await chatPage.wait(2000);
-      await chatPage.navigate();
-      
-      if (await chatPage.chatSearchInput.isVisible()) {
-        await chatPage.searchChat('테스트');
-      }
-    });
-  });
-
-  // 알림 관련 테스트
-  test.describe('알림 기능', () => {
-    test('알림 페이지 로드', async ({ page }) => {
-      const loginPage = new LoginPage(page);
-      const notificationPage = new NotificationPage(page);
-      
-      await loginPage.navigate();
-      await loginPage.login('test1', 'test1234');
-      await notificationPage.wait(2000);
-      await notificationPage.navigate();
-      
-      await expect(notificationPage.pageTitle).toBeVisible();
-      await expect(notificationPage.notificationList).toBeVisible();
-    });
-
-    test('알림 아이콘 클릭', async ({ page }) => {
-      const loginPage = new LoginPage(page);
-      const notificationPage = new NotificationPage(page);
-      
-      await loginPage.navigate();
-      await loginPage.login('test1', 'test1234');
-      await notificationPage.wait(2000);
-      
-      if (await notificationPage.notificationIcon.isVisible()) {
-        await notificationPage.openNotificationDropdown();
-        await expect(notificationPage.notificationDropdown).toBeVisible();
-      }
-    });
-
-    test('알림 읽음 처리', async ({ page }) => {
-      const loginPage = new LoginPage(page);
-      const notificationPage = new NotificationPage(page);
-      
-      await loginPage.navigate();
-      await loginPage.login('test1', 'test1234');
-      await notificationPage.wait(2000);
-      await notificationPage.navigate();
-      
-      if (await notificationPage.markAllReadButton.isVisible()) {
-        await notificationPage.markAllAsRead();
-      }
-    });
-
-    test('알림 필터 기능', async ({ page }) => {
-      const loginPage = new LoginPage(page);
-      const notificationPage = new NotificationPage(page);
-      
-      await loginPage.navigate();
-      await loginPage.login('test1', 'test1234');
-      await notificationPage.wait(2000);
-      await notificationPage.navigate();
-      
-      const filterCount = await notificationPage.filterButtons.count();
-      if (filterCount > 0) {
-        await notificationPage.filterNotifications('all');
-        await notificationPage.filterNotifications('unread');
-      }
-    });
-  });
-
-  // 통합 테스트
-  test.describe('통합 기능', () => {
-    test('로그인 후 게시판 접근', async ({ page }) => {
-      const loginPage = new LoginPage(page);
+    test('게시판 페이지 로드', async ({ page }) => {
       const boardPage = new BoardPage(page);
-      
-      await loginPage.navigate();
-      
-      // 실제 테스트 계정 정보로 변경 필요
-      const username = 'test1';
-      const password = 'test1234';
-      
-      await loginPage.login(username, password);
-      await boardPage.wait(2000);
       await boardPage.navigate();
       
-      await expect(boardPage.pageTitle).toContainText('게시판');
+      await expect(boardPage.pageTitle).toBeVisible();
+      await expect(boardPage.postsTable).toBeVisible();
     });
 
-    test('비로그인 상태에서 글쓰기 접근', async ({ page }) => {
+    test('게시글 작성', async ({ page }) => {
+      const boardPage = new BoardPage(page);
       const writePage = new WritePage(page);
       
-      await writePage.navigate();
-      await writePage.wait(1000);
+      await boardPage.navigate();
+      await boardPage.writeButton.click();
+      
+      const testTitle = `Regression 테스트 게시글 ${Date.now()}`;
+      const testContent = 'Regression 테스트용 게시글 내용입니다.';
+      
+      await writePage.writePost(testTitle, testContent);
+      
+      await boardPage.navigate();
+      await expect(boardPage.getPostByTitle(testTitle)).toBeVisible({ timeout: 5000 });
+    });
+
+    test('게시글 상세 조회', async ({ page }) => {
+      const boardPage = new BoardPage(page);
+      const detailPage = new DetailPage(page);
+      
+      await boardPage.navigate();
+      await boardPage.clickFirstPost();
+      
+      await expect(detailPage.postTitle).toBeVisible();
+      await expect(detailPage.postContent).toBeVisible();
+    });
+
+    test('댓글 작성', async ({ page }) => {
+      const boardPage = new BoardPage(page);
+      const detailPage = new DetailPage(page);
+      
+      await boardPage.navigate();
+      await boardPage.clickFirstPost();
+      
+      const commentText = `Regression 테스트 댓글 ${Date.now()}`;
+      await detailPage.writeComment(commentText);
+      
+      await expect(detailPage.commentsList).toContainText(commentText, { timeout: 3000 });
+    });
+
+    test('게시글 수정', async ({ page }) => {
+      const boardPage = new BoardPage(page);
+      const writePage = new WritePage(page);
+      const detailPage = new DetailPage(page);
+      
+      // 게시글 작성
+      await boardPage.navigate();
+      await boardPage.writeButton.click();
+      const testTitle = `수정 테스트 ${Date.now()}`;
+      await writePage.writePost(testTitle, '원본 내용');
+      
+      // 게시글 상세로 이동
+      await boardPage.navigate();
+      await boardPage.clickPostByTitle(testTitle);
+      
+      // 수정 버튼 클릭
+      if (await detailPage.editButton.isVisible()) {
+        await detailPage.clickEditButton();
+        await expect(page).toHaveURL(/.*\/modify|.*\/edit/);
+      }
+    });
+
+    test('게시글 삭제', async ({ page }) => {
+      const boardPage = new BoardPage(page);
+      const writePage = new WritePage(page);
+      const detailPage = new DetailPage(page);
+      
+      // 게시글 작성
+      await boardPage.navigate();
+      await boardPage.writeButton.click();
+      const testTitle = `삭제 테스트 ${Date.now()}`;
+      await writePage.writePost(testTitle, '삭제될 내용');
+      
+      // 게시글 상세로 이동
+      await boardPage.navigate();
+      await boardPage.clickPostByTitle(testTitle);
+      
+      // 삭제 버튼 클릭
+      if (await detailPage.deleteButton.isVisible()) {
+        await detailPage.confirmDelete();
+        await boardPage.navigate();
+        await expect(boardPage.getPostByTitle(testTitle)).not.toBeVisible({ timeout: 3000 });
+      }
+    });
+  });
+
+  // 회의실 예약 관련 테스트
+  test.describe('회의실 예약 기능', () => {
+    test.beforeEach(async ({ page }) => {
+      const loginPage = new LoginPage(page);
+      await loginPage.navigate();
+      await loginPage.login('test1', 'test1234');
+    });
+
+    test('회의실 예약 페이지 로드', async ({ page }) => {
+      const reservationPage = new ReservationPage(page);
+      await reservationPage.navigate();
+      
+      await expect(reservationPage.calendar).toBeVisible({ timeout: 5000 });
+    });
+
+    test('예약 모달 열기', async ({ page }) => {
+      const reservationPage = new ReservationPage(page);
+      await reservationPage.navigate();
+      
+      // 캘린더에서 날짜 클릭 (오늘 날짜)
+      const today = new Date().toISOString().split('T')[0];
+      await reservationPage.clickDate(today);
+      
+      // 예약 모달이 열리는지 확인
+      await expect(reservationPage.reservationModal).toBeVisible({ timeout: 3000 });
+    });
+  });
+
+  // 로그아웃 테스트
+  test.describe('로그아웃 기능', () => {
+    test.beforeEach(async ({ page }) => {
+      const loginPage = new LoginPage(page);
+      await loginPage.navigate();
+      await loginPage.login('test1', 'test1234');
+    });
+
+    test('로그아웃 수행', async ({ page }) => {
+      const basePage = new BasePage(page);
+      await basePage.logout();
+      
+      await expect(page).toHaveURL(/.*\/login|.*\/home/);
     });
   });
 });
-

@@ -1,45 +1,75 @@
 // @ts-check
+// @ts-ignore - @playwright/test 타입 선언이 자동으로 로드됨
 import { test, expect } from '@playwright/test';
 import LoginPage from '../pages/LoginPage.js';
-import BoardPage from '../pages/BoardPage.js';
-import WritePage from '../pages/WritePage.js';
+import RegisterPage from '../pages/RegisterPage.js';
+import BasePage from '../pages/BasePage.js';
 
 /**
- * 인증 관련 통합 테스트
+ * 인증 관련 기능 테스트 (로그인, 회원가입, 로그아웃)
  */
-test.describe('인증 기능 통합 테스트', () => {
+test.describe('인증 기능', () => {
   
-  test('로그인 후 게시판 접근', async ({ page }) => {
-    const loginPage = new LoginPage(page);
-    const boardPage = new BoardPage(page);
-    
-    // 로그인 페이지로 이동
-    await loginPage.navigate();
-    
-    // 실제 테스트 계정 정보로 변경 필요
-    const username = 'test1';
-    const password = 'test1234';
-    
-    // 로그인 수행
-    await loginPage.login(username, password);
-    
-    // 로그인 성공 후 게시판으로 이동
-    await boardPage.wait(5000);
-    await boardPage.navigate();
-    
-    // 게시판이 정상적으로 로드되었는지 확인
-    await expect(boardPage.pageTitle).toContainText('게시판');
+  test.describe('로그인', () => {
+    test('로그인 성공', async ({ page }) => {
+      const loginPage = new LoginPage(page);
+      await loginPage.navigate();
+      await loginPage.login('test1', 'test1234');
+      
+      await expect(page).toHaveURL(/.*\/home|.*\/index/, { timeout: 5000 });
+    });
+
+    test('로그인 실패 - 잘못된 비밀번호', async ({ page }) => {
+      const loginPage = new LoginPage(page);
+      await loginPage.navigate();
+      await loginPage.login('test1', 'wrongpassword');
+      
+      // 에러 메시지 확인 또는 로그인 페이지에 머무는지 확인
+      await loginPage.wait(2000);
+      // 로그인 실패 시 에러 메시지가 표시되거나 로그인 페이지에 머무름
+    });
   });
 
-  test('비로그인 상태에서 글쓰기 접근', async ({ page }) => {
-    const writePage = new WritePage(page);
-    
-    // 로그인 없이 글쓰기 페이지 접근
-    await writePage.navigate();
-    
-    // 로그인 페이지로 리다이렉트되는지 확인
-    // 또는 에러 메시지가 표시되는지 확인
-    await writePage.wait(1000);
+  test.describe('회원가입', () => {
+    test('회원가입 페이지 로드', async ({ page }) => {
+      const registerPage = new RegisterPage(page);
+      await registerPage.navigate();
+      
+      await expect(registerPage.usernameInput).toBeVisible();
+      await expect(registerPage.passwordInput).toBeVisible();
+      await expect(registerPage.emailInput).toBeVisible();
+    });
+
+    test('회원가입 폼 입력', async ({ page }) => {
+      const registerPage = new RegisterPage(page);
+      await registerPage.navigate();
+      
+      await registerPage.usernameInput.fill('newuser');
+      await registerPage.passwordInput.fill('newpass123');
+      await registerPage.confirmPasswordInput.fill('newpass123');
+      await registerPage.nameInput.fill('New User');
+      await registerPage.emailInput.fill('newuser@test.com');
+      await registerPage.genderM.check();
+      await registerPage.phoneInput.fill('010-1234-5678');
+      
+      await expect(registerPage.usernameInput).toHaveValue('newuser');
+      await expect(registerPage.emailInput).toHaveValue('newuser@test.com');
+    });
+  });
+
+  test.describe('로그아웃', () => {
+    test.beforeEach(async ({ page }) => {
+      const loginPage = new LoginPage(page);
+      await loginPage.navigate();
+      await loginPage.login('test1', 'test1234');
+    });
+
+    test('로그아웃 수행', async ({ page }) => {
+      const basePage = new BasePage(page);
+      await basePage.logout();
+      
+      // 로그아웃 후 로그인 페이지 또는 홈페이지로 이동
+      await expect(page).toHaveURL(/.*\/login|.*\/home/, { timeout: 5000 });
+    });
   });
 });
-
