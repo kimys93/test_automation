@@ -349,7 +349,7 @@
                   {
                     "title": "에러 상세 보기",
                     "targetBlank": true,
-                    "url": "${JENKINS_URL}/job/${JOB_NAME}/lastSuccessfulBuild/artifact/${__data.fields.report_path?.values[__dataView.getFieldDisplayName() === 'test_name' ? __seriesIndex : 0]}"
+                    "url": "${JENKINS_URL}/job/${JOB_NAME}/${__data.fields.build_number?.values[__seriesIndex]}/artifact/${__data.fields.report_path?.values[__seriesIndex]}"
                   }
                 ]
               }
@@ -358,7 +358,19 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "report_path"
+              "options": "build_number"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "에러 상세"
             },
             "properties": [
               {
@@ -367,7 +379,7 @@
                   {
                     "title": "에러 상세 보기",
                     "targetBlank": true,
-                    "url": "${JENKINS_URL}/job/${JOB_NAME}/lastSuccessfulBuild/artifact/${__value.raw}"
+                    "url": "${JENKINS_URL}/job/${JOB_NAME}/${__data.fields.build_number?.values[__seriesIndex]}/artifact/${__value.raw}"
                   }
                 ]
               }
@@ -399,10 +411,12 @@
           "id": "organize",
           "options": {
             "excludeByName": {
-              "report_path": true
+              "build_number": true
             },
             "indexByName": {},
-            "renameByName": {}
+            "renameByName": {
+              "report_path": "에러 상세"
+            }
           }
         }
       ],
@@ -415,7 +429,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n  ts.test_name,\n  ts.failure_rate,\n  (SELECT tr.report_path FROM test_runs tr JOIN test_cases tc ON tr.id = tc.test_run_id WHERE tc.test_name = ts.test_name AND tc.status = 'FAILED' AND tr.report_path IS NOT NULL ORDER BY tr.started_at DESC LIMIT 1) as report_path\nFROM test_statistics ts\nWHERE ts.total_runs > 0 AND ts.test_name != 'Unknown Test'\nORDER BY ts.failure_rate DESC\nLIMIT 10",
+          "rawSql": "SELECT\n  ts.test_name,\n  ts.failure_rate,\n  (SELECT tr.report_path FROM test_runs tr JOIN test_cases tc ON tr.id = tc.test_run_id WHERE tc.test_name = ts.test_name AND tc.status = 'FAILED' AND tr.report_path IS NOT NULL ORDER BY tr.started_at DESC LIMIT 1) as report_path,\n  (SELECT tr.build_number FROM test_runs tr JOIN test_cases tc ON tr.id = tc.test_run_id WHERE tc.test_name = ts.test_name AND tc.status = 'FAILED' AND tr.report_path IS NOT NULL ORDER BY tr.started_at DESC LIMIT 1) as build_number\nFROM test_statistics ts\nWHERE ts.total_runs > 0 AND ts.test_name != 'Unknown Test'\nORDER BY ts.failure_rate DESC\nLIMIT 10",
           "refId": "A",
           "sql": {
             "columns": [
@@ -598,9 +612,21 @@
                   {
                     "title": "테스트 리포트 보기",
                     "targetBlank": true,
-                    "url": "${JENKINS_URL}/job/${JOB_NAME}/lastSuccessfulBuild/artifact/${__data.fields.report_path?.values[__rowIndex]}"
+                    "url": "${JENKINS_URL}/job/${JOB_NAME}/${__data.fields.build_number?.values[__rowIndex]}/artifact/${__data.fields.report_path?.values[__rowIndex]}"
                   }
                 ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "build_number"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
               }
             ]
           },
@@ -616,7 +642,20 @@
               },
               {
                 "id": "custom.displayMode",
-                "value": "color-background"
+                "value": "color-text"
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "null": {
+                        "text": "-"
+                      }
+                    },
+                    "type": "special"
+                  }
+                ]
               },
               {
                 "id": "links",
@@ -624,7 +663,7 @@
                   {
                     "title": "View Report",
                     "targetBlank": true,
-                    "url": "${JENKINS_URL}/job/${JOB_NAME}/lastSuccessfulBuild/artifact/${__value.raw}"
+                    "url": "${JENKINS_URL}/job/${JOB_NAME}/${__data.fields.build_number?.values[__rowIndex]}/artifact/${__value.raw}"
                   }
                 ]
               }
@@ -659,7 +698,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n  tc.test_name,\n  CASE \n    WHEN tc.steps IS NOT NULL AND tc.steps::text != 'null' AND tc.steps::text != '[]' THEN\n      COALESCE(\n        -- depth3 step 배열에서 직접 error 찾기 (현재 저장 구조)\n        (SELECT string_agg(step->>'title', ' > ')\n         FROM jsonb_array_elements(tc.steps::jsonb) AS step\n         WHERE step->'error' IS NOT NULL\n         LIMIT 10),\n        -- 또는 depth2->depth3 구조 (Mac 환경에서 저장된 경우)\n        (SELECT string_agg(d3_step->>'title', ' > ')\n         FROM jsonb_array_elements(tc.steps::jsonb) AS d2_step,\n              jsonb_array_elements(CASE WHEN jsonb_typeof(d2_step->'steps') = 'array' THEN d2_step->'steps' ELSE '[]'::jsonb END) AS d3_step\n         WHERE d2_step->'steps' IS NOT NULL\n           AND jsonb_typeof(d2_step->'steps') = 'array'\n           AND (d3_step->'error' IS NOT NULL OR d3_step->'statusDetails' IS NOT NULL)\n         LIMIT 10)\n      )\n    ELSE NULL\n  END AS error_steps,\n  tc.status,\n  tc.error_message,\n  tr.run_id,\n  tr.report_path,\n  tr.started_at\nFROM test_cases tc\nJOIN test_runs tr ON tc.test_run_id = tr.id\nWHERE tc.status = 'FAILED'\nORDER BY tr.started_at DESC, tc.test_name\nLIMIT 50",
+          "rawSql": "SELECT\n  tc.test_name,\n  CASE \n    WHEN tc.steps IS NOT NULL AND tc.steps::text != 'null' AND tc.steps::text != '[]' THEN\n      COALESCE(\n        -- depth3 step 배열에서 직접 error 찾기 (현재 저장 구조)\n        (SELECT string_agg(step->>'title', ' > ')\n         FROM jsonb_array_elements(tc.steps::jsonb) AS step\n         WHERE step->'error' IS NOT NULL\n         LIMIT 10),\n        -- 또는 depth2->depth3 구조 (Mac 환경에서 저장된 경우)\n        (SELECT string_agg(d3_step->>'title', ' > ')\n         FROM jsonb_array_elements(tc.steps::jsonb) AS d2_step,\n              jsonb_array_elements(CASE WHEN jsonb_typeof(d2_step->'steps') = 'array' THEN d2_step->'steps' ELSE '[]'::jsonb END) AS d3_step\n         WHERE d2_step->'steps' IS NOT NULL\n           AND jsonb_typeof(d2_step->'steps') = 'array'\n           AND (d3_step->'error' IS NOT NULL OR d3_step->'statusDetails' IS NOT NULL)\n         LIMIT 10)\n      )\n    ELSE NULL\n  END AS error_steps,\n  tc.status,\n  tc.error_message,\n  tr.run_id,\n  tr.report_path,\n  tr.build_number,\n  tr.started_at\nFROM test_cases tc\nJOIN test_runs tr ON tc.test_run_id = tr.id\nWHERE tc.status = 'FAILED'\nORDER BY tr.started_at DESC, tc.test_name\nLIMIT 50",
           "refId": "A",
           "sql": {
             "columns": [
@@ -689,7 +728,48 @@
   "style": "dark",
   "tags": ["test", "automation"],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "current": {
+          "selected": false,
+          "text": "http://localhost:8080",
+          "value": "http://localhost:8080"
+        },
+        "hide": 0,
+        "label": "Jenkins URL",
+        "name": "JENKINS_URL",
+        "options": [
+          {
+            "selected": true,
+            "text": "http://localhost:8080",
+            "value": "http://localhost:8080"
+          }
+        ],
+        "query": "http://localhost:8080",
+        "skipUrlSync": false,
+        "type": "textbox"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "test-automation",
+          "value": "test-automation"
+        },
+        "hide": 0,
+        "label": "Job Name",
+        "name": "JOB_NAME",
+        "options": [
+          {
+            "selected": true,
+            "text": "test-automation",
+            "value": "test-automation"
+          }
+        ],
+        "query": "test-automation",
+        "skipUrlSync": false,
+        "type": "textbox"
+      }
+    ]
   },
   "time": {
     "from": "now-7d",
