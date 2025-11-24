@@ -8,6 +8,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import pkg from 'pg';
+// @ts-ignore - dotenv 타입 선언이 없어도 정상 동작
 import dotenv from 'dotenv';
 
 const { Pool } = pkg;
