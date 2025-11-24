@@ -78,7 +78,7 @@ export default defineConfig({
   /* 공유 설정 */
   use: {
     /* 기본 URL */
-    baseURL: 'http://localhost:3000',
+    baseURL: 'http://10.10.0.159:8000/',
     /* 브라우저 컨텍스트 옵션 */
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
