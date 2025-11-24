@@ -18,30 +18,34 @@ function getReporters() {
     ['json', { outputFile: 'test-results/results.json' }]
   ];
 
-  // ReportPortal 설정 (항상 활성화)
+  // ReportPortal 설정 (RP_TOKEN이 설정된 경우에만 활성화)
   if (process.env.RP_TOKEN) {
+    // 모든 값 하드코딩 (BUILD_NUMBER는 Date.now()로 동적 생성)
+    const buildNumber = Date.now().toString();
+    const launchName = `test-run-${buildNumber}`;
+    
     const rpConfig = {
-      token: process.env.RP_TOKEN,
-      endpoint: 'http://localhost:8082/api',
-      project: 'test_automation',
-      launch: process.env.RP_LAUNCH || `test-run-${process.env.BUILD_NUMBER || Date.now()}`,
+      token: process.env.RP_TOKEN, // Jenkins Credential에서만 가져옴 (필수)
+      endpoint: 'http://localhost:8082/api', // Hardcoded
+      project: 'test_automation', // Hardcoded
+      launch: launchName, // Hardcoded (Date.now() 기반)
       attributes: [
         {
           key: 'testType',
-          value: 'sanity'
+          value: 'sanity' // Hardcoded
         },
         {
           key: 'environment',
-          value: 'CI'
+          value: 'CI' // Hardcoded
         },
         {
           key: 'build',
-          value: process.env.BUILD_NUMBER || 'local'
+          value: buildNumber // Hardcoded (Date.now() 기반)
         }
       ],
-      description: `Test run: sanity - Build: ${process.env.BUILD_NUMBER || 'local'}`,
-      mode: 'DEFAULT',
-      debug: false
+      description: `Test run: sanity - Build: ${buildNumber}`, // Hardcoded
+      mode: 'DEFAULT', // Hardcoded
+      debug: false // Hardcoded
     };
 
     reporters.push(['@reportportal/agent-js-playwright', rpConfig]);
@@ -66,9 +70,9 @@ export default defineConfig({
   /* 테스트를 병렬로 실행 */
   fullyParallel: true,
   /* CI에서 실패한 테스트를 재시도 */
-  retries: process.env.CI ? 1 : 0,
+  retries: 1, // Hardcoded
   /* 병렬 실행할 워커 수 */
-  workers: process.env.CI ? 1 : undefined,
+  workers: 1, // Hardcoded
   /* 리포트 설정 */
   reporter: getReporters(),
   /* 공유 설정 */
