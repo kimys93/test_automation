@@ -60,14 +60,17 @@ test.describe('Sanity Test: 핵심 기능 워크플로우', () => {
         // 2. 로그인 성공 확인 (리디렉션 URL 확인)
         await expect(page).toHaveURL(/.*\/home|.*\/index/);
         
-        // 3. Storage State 저장 (다음 테스트에서 test.use()로 자동 로드됨)
+        // 3. Storage State 저장 (다음 테스트에서 재사용)
         await context.storageState({ path: authFile });
     });
 
     // --- 3. 핵심 기능: 글쓰기 및 목록 확인 (Storage State 자동 로드) ---
-    test.use({ storageState: authFile });
-    test('Sanity 03: 게시글 작성 및 목록 노출 확인', async ({ page }) => {
-        // **test.use()로 Storage State가 자동 로드되어 로그인 상태가 유지됩니다.**
+    test('Sanity 03: 게시글 작성 및 목록 노출 확인', async ({ page, context }) => {
+        // Storage State 파일이 존재하는 경우에만 로드
+        const fs = await import('fs');
+        if (fs.existsSync(authFile)) {
+            await context.storageState({ path: authFile });
+        }
         const boardPage = new BoardPage(page);
         const writePage = new WritePage(page);
         
@@ -96,9 +99,12 @@ test.describe('Sanity Test: 핵심 기능 워크플로우', () => {
     });
 
     // --- 4. 핵심 기능: 상세 조회 및 댓글 작성 (Storage State 자동 로드) ---
-    test.use({ storageState: authFile });
-    test('Sanity 04: 게시글 상세 조회 및 댓글 작성 확인', async ({ page }) => {
-        // **test.use()로 Storage State가 자동 로드되어 로그인 상태가 유지됩니다.**
+    test('Sanity 04: 게시글 상세 조회 및 댓글 작성 확인', async ({ page, context }) => {
+        // Storage State 파일이 존재하는 경우에만 로드
+        const fs = await import('fs');
+        if (fs.existsSync(authFile)) {
+            await context.storageState({ path: authFile });
+        }
         const boardPage = new BoardPage(page);
         const detailPage = new DetailPage(page);
 
