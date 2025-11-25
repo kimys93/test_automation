@@ -156,6 +156,8 @@ pipeline {
                                         export LAUNCH_UUID=${launchUuid}
                                         
                                         echo "📦 Allure 리포트 ZIP 파일 생성..."
+                                        # 2초 대기 (파일 잠금 문제 해결)
+                                        sleep 2
                                         cd allure-report && zip -r ../allure-report.zip . && cd ..
                                         
                                         echo "⚡️ Launch \$LAUNCH_ID 상태를 ACTIVE로 변경..."
@@ -173,12 +175,8 @@ pipeline {
                                         echo "[{\\"itemUuid\\":\\"\$ITEM_ID\\",\\"launchUuid\\":\\"\$LAUNCH_UUID\\",\\"level\\":\\"INFO\\",\\"message\\":\\"Allure Report: allure-report.zip\\",\\"time\\":\\"\$NOW\\"}]" > rp-json-part.txt
                                         
                                         echo "📤 curl을 사용하여 ReportPortal에 파일 업로드 시작..."
-                                        curl -X POST "\$RP_ENDPOINT/\$RP_PROJECT/log" \\
-                                            -H "Authorization: Bearer \$RP_TOKEN" \\
-                                            -F "json_request_part=@rp-json-part.txt;type=application/json" \\
-                                            -F "file=@allure-report.zip;filename=allure-report.zip;type=application/zip" \\
-                                            -w "\\nHTTP Status: %{http_code}\\n" \\
-                                            -v 2>&1 | grep -E "(HTTP|error|Error|ERROR|success|Success)" || true
+                                        # curl을 한 줄로 실행 (구문 오류 방지)
+                                        curl -X POST "\$RP_ENDPOINT/\$RP_PROJECT/log" -H "Authorization: Bearer \$RP_TOKEN" -F "json_request_part=@rp-json-part.txt;type=application/json" -F "file=@allure-report.zip;filename=allure-report.zip;type=application/zip" -w "\\nHTTP Status: %{http_code}\\n" -v 2>&1 | grep -E "(HTTP|error|Error|ERROR|success|Success)" || true
                                         echo "✅ curl 업로드 시도 완료 (로그 확인 필요)"
                                         
                                         echo "😴 Launch \$LAUNCH_ID 상태를 STOPPED로 변경..."
