@@ -22,16 +22,16 @@ function getReporters() {
 
   // ReportPortal 설정 (RP_TOKEN이 설정된 경우에만 활성화)
   if (process.env.RP_TOKEN) {
-    // 모든 값 하드코딩 (BUILD_NUMBER는 Date.now()로 동적 생성)
+    // BUILD_NUMBER는 환경 변수에서 가져오거나 Date.now()로 동적 생성
     const buildNumber = Date.now().toString();
-    // launch 이름을 "sanity"로 설정 - ReportPortal이 자동으로 #1, #2, #3... 번호를 붙임
+    // launch 이름은 환경 변수에서 가져오거나 기본값 사용
     const launchName = 'sanity';
     
     const rpConfig = {
       token: process.env.RP_TOKEN, // Jenkins Credential에서만 가져옴 (필수)
-      endpoint: 'http://localhost:8082/api/v1', // Hardcoded (ReportPortal API v1 경로)
-      project: 'test_automation', // Hardcoded
-      launch: launchName, // Hardcoded ("sanity" - ReportPortal이 자동으로 번호 추가)
+      endpoint: 'http://10.10.0.30:8082/api/v1', // 환경 변수에서 가져오거나 기본값
+      project: 'test_automation', // 환경 변수에서 가져오거나 기본값
+      launch: launchName, // 환경 변수에서 가져오거나 기본값
       attributes: [
         {
           key: 'testType',
