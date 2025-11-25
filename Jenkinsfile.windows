@@ -111,7 +111,7 @@ pipeline {
                                     echo "DEBUG: JSON length: ${rpInfoJson.length()}"
                                     
                                     // JSON 문자열 정리 및 파싱 시도 (강화된 버전)
-                                    def rpInfo
+                                    // 💡 수정: rpInfo 변수를 최소화하고 바로 String으로 변환하여 직렬화 문제 방지
                                     try {
                                         // 1단계: 모든 제어 문자 및 불필요한 공백 제거
                                         rpInfoJson = rpInfoJson.replaceAll(/[\r\n\t]/, '').replaceAll(/\s+/, ' ').trim()
@@ -127,22 +127,28 @@ pipeline {
                                         
                                         echo "DEBUG: Cleaned JSON: [${rpInfoJson}]"
                                         
-                                        // 4단계: JSON 파싱
-                                        rpInfo = new groovy.json.JsonSlurper().parseText(rpInfoJson)
+                                        // 4단계: JSON 파싱 및 즉시 String으로 변환 (직렬화 문제 방지)
+                                        def rpInfo = new groovy.json.JsonSlurper().parseText(rpInfoJson)
                                         
                                         // 5단계: 필수 필드 검증
                                         if (!rpInfo.id || !rpInfo.uuid) {
                                             throw new Exception("JSON is missing required fields (id, uuid).")
                                         }
                                         
+                                        // 💡 수정: 할당 시 명시적으로 String 타입 변수에 값을 할당
+                                        // 이 시점에서 launchId와 launchUuid는 직렬화가 가능한 String이 됩니다.
                                         launchId = rpInfo.id.toString()
                                         launchUuid = rpInfo.uuid.toString()
+                                        
+                                        // rpInfo 변수는 이제 사용하지 않으므로 스코프를 벗어나면 GC 대상이 됩니다.
+                                        rpInfo = null
+                                        
                                         echo "DEBUG: Parsed Launch ID: ${launchId}, UUID: ${launchUuid}"
                                     } catch (Exception e) {
-                                        echo "ERROR: JSON 파싱 실패: ${e.getMessage()}"
+                                        echo "ERROR: JSON parsing failed: ${e.getMessage()}"
                                         echo "ERROR: Exception class: ${e.getClass().getName()}"
-                                        echo "ERROR: JSON 내용 (원본): [${rpInfoJson}]"
-                                        echo "ERROR: JSON 내용 (hex): ${rpInfoJson.bytes.collect { String.format('%02x', it) }.join(' ')}"
+                                        echo "ERROR: JSON content (original): [${rpInfoJson}]"
+                                        echo "ERROR: JSON content (hex): ${rpInfoJson.bytes.collect { String.format('%02x', it) }.join(' ')}"
                                         throw new Exception("Failed to parse ReportPortal information - please check console output.", e)
                                     }
                                     
@@ -215,8 +221,9 @@ pipeline {
                             } catch (Exception e) {
                                 // If failed here: likely Agent connection issue or JSON parsing problem
                                 // Safe error message handling (prevent secondary errors)
-                                def errorMessage = "Unknown error"
-                                def errorClass = "Unknown"
+                                // 💡 수정: 직렬화 가능한 String 타입만 사용
+                                String errorMessage = "Unknown error"
+                                String errorClass = "Unknown"
                                 try {
                                     errorMessage = e.getMessage() ?: "Unknown Groovy error. Please check console for details."
                                     errorClass = e.getClass().getName()
@@ -226,16 +233,19 @@ pipeline {
                                 echo "Failed to attach Allure report to ReportPortal: ${errorMessage}"
                                 echo "Error Class: ${errorClass}"
                                 // Try to change Launch status to STOPPED even if failed
+                                // 💡 수정: launchId가 String 타입이므로 직렬화 문제 없이 사용 가능
                                 try {
                                     if (launchId) {
                                         withCredentials([string(credentialsId: 'reportportal-token', variable: 'RP_TOKEN')]) {
+                                            // launchId를 String으로 변환하여 bat 블록에 전달
+                                            String launchIdForBat = launchId.toString()
                                             bat """
                                                 @echo off
-                                                echo Attempting to force change Launch ${launchId} status to STOPPED after error...
+                                                echo Attempting to force change Launch ${launchIdForBat} status to STOPPED after error...
                                                 set RP_ENDPOINT=http://localhost:8082/api/v1
                                                 set RP_TOKEN=%RP_TOKEN%
                                                 set RP_PROJECT=test_automation
-                                                node scripts/get-rp-id.js update ${launchId} STOPPED
+                                                node scripts/get-rp-id.js update ${launchIdForBat} STOPPED
                                                 echo Force STOPPED processing completed
                                             """
                                         }
