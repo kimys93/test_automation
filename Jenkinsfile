@@ -115,22 +115,28 @@ pipeline {
                                         node scripts/get-rp-id.js item ${launchId}
                                     """).trim()
                                     
-                                    // 3. JSON 요청 파트 구성
+                                    // 3. JSON 요청 파트 구성 및 임시 파일로 저장
                                     def now = new Date().format("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", TimeZone.getTimeZone('UTC'))
-                                    def jsonPart = """{"itemUuid":"${itemId}","launchUuid":"${launchId}","level":"INFO","message":"Allure Report: allure-report.zip","time":"${now}"}"""
+                                    def jsonContent = """{"itemUuid":"${itemId}","launchUuid":"${launchId}","level":"INFO","message":"Allure Report: allure-report.zip","time":"${now}"}"""
+                                    
+                                    // JSON을 임시 파일로 저장 (특수문자 이스케이프 문제 방지)
+                                    writeFile file: 'rp-json-part.txt', text: jsonContent
                                     
                                     // 4. curl을 사용하여 ReportPortal에 첨부
                                     sh """
                                         echo "📤 curl을 사용하여 ReportPortal에 파일 업로드 시작..."
                                         curl -X POST "http://localhost:8082/api/v1/test_automation/log" \\
                                             -H "Authorization: Bearer ${RP_TOKEN}" \\
-                                            -F "json_request_part=${jsonPart}" \\
-                                            -F "file=@allure-report.zip;type=application/zip"
+                                            -F "json_request_part=@rp-json-part.txt;type=application/json" \\
+                                            -F "file=@allure-report.zip;filename=allure-report.zip;type=application/zip"
                                         echo "✅ curl 업로드 완료"
                                     """
                                     
-                                    // 5. 임시 ZIP 파일 삭제
-                                    sh "rm -f allure-report.zip"
+                                    // 5. 임시 파일 삭제
+                                    sh """
+                                        rm -f allure-report.zip
+                                        rm -f rp-json-part.txt
+                                    """
                                     
                                     echo "✅ 완료! Allure 리포트가 Launch ${launchId}에 첨부되었습니다."
                                 }
