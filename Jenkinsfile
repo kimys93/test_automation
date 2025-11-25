@@ -119,6 +119,10 @@ pipeline {
                                     
                                     // JSON 문자열 정리 및 파싱 시도 (강화된 버전)
                                     def rpInfo
+                                    // 💡 수정: 로컬 변수를 try 블록 밖에서 선언
+                                    def launchIdStr = null
+                                    def launchUuidStr = null
+                                    
                                     try {
                                         // 1단계: 모든 제어 문자 및 불필요한 공백 제거
                                         rpInfoJson = rpInfoJson.replaceAll(/[\r\n\t]/, '').replaceAll(/\s+/, ' ').trim()
@@ -143,8 +147,8 @@ pipeline {
                                         }
                                         
                                         // 💡 수정: 로컬 변수에 직접 할당 (env 접근 문제 방지)
-                                        def launchIdStr = rpInfo.id.toString()
-                                        def launchUuidStr = rpInfo.uuid.toString()
+                                        launchIdStr = rpInfo.id.toString()
+                                        launchUuidStr = rpInfo.uuid.toString()
                                         
                                         // 환경 변수에도 할당 (나중에 catch 블록에서 사용하기 위해)
                                         env.LAUNCH_ID = launchIdStr
@@ -154,9 +158,16 @@ pipeline {
                                         
                                         // rpInfo 객체는 더 이상 필요 없으므로 명시적으로 null 처리하여 직렬화 문제 방지
                                         rpInfo = null
-                                        
-                                        // 💡 수정: 로컬 변수를 사용하여 유효성 검사
-                                        if (launchIdStr && launchUuidStr) {
+                                    } catch (Exception e) {
+                                        echo "ERROR: JSON 파싱 실패: ${e.getMessage()}"
+                                        echo "ERROR: Exception class: ${e.getClass().getName()}"
+                                        echo "ERROR: JSON 내용 (원본): [${rpInfoJson}]"
+                                        echo "ERROR: JSON 내용 (hex): ${rpInfoJson.bytes.collect { String.format('%02x', it) }.join(' ')}"
+                                        throw new Exception("ReportPortal 정보 파싱 실패 - 콘솔 출력을 확인하세요.", e)
+                                    }
+                                    
+                                    // 💡 수정: 로컬 변수를 사용하여 유효성 검사
+                                    if (launchIdStr && launchUuidStr) {
                                         // 2. 나머지 모든 ReportPortal 연동/업로드/종료 작업을 하나의 sh 블록으로 통합 실행
                                         sh """
                                             export RP_ENDPOINT=http://10.10.0.30:8082/api/v1
