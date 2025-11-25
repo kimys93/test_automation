@@ -91,9 +91,9 @@ pipeline {
                         
                         // Allure 리포트가 생성되었는지 확인
                         if (fileExists('allure-report')) {
-                            // 💡 수정: 변수를 try 블록 밖에서 null로 초기화합니다.
-                            def launchId = null
-                            def launchUuid = null
+                            // 💡 수정: 변수를 try 블록 밖에서 String 타입으로 명시적 초기화
+                            String launchId = null
+                            String launchUuid = null
                             
                             // Allure 리포트를 ReportPortal에 첨부 (curl 사용)
                             try {
@@ -136,9 +136,13 @@ pipeline {
                                             throw new Exception("JSON에 필수 필드(id, uuid)가 없습니다.")
                                         }
                                         
+                                        // 💡 수정: 할당 시 명시적으로 String 타입 변수에 값을 할당
                                         launchId = rpInfo.id.toString()
                                         launchUuid = rpInfo.uuid.toString()
                                         echo "DEBUG: Parsed Launch ID: ${launchId}, UUID: ${launchUuid}"
+                                        
+                                        // rpInfo 객체는 더 이상 필요 없으므로 명시적으로 null 처리하여 직렬화 문제 방지
+                                        rpInfo = null
                                     } catch (Exception e) {
                                         echo "ERROR: JSON 파싱 실패: ${e.getMessage()}"
                                         echo "ERROR: Exception class: ${e.getClass().getName()}"
@@ -147,60 +151,75 @@ pipeline {
                                         throw new Exception("ReportPortal 정보 파싱 실패 - 콘솔 출력을 확인하세요.", e)
                                     }
                                     
-                                    // 2. 나머지 모든 ReportPortal 연동/업로드/종료 작업을 하나의 sh 블록으로 통합 실행
-                                    sh """
-                                        export RP_ENDPOINT=http://localhost:8082/api/v1
-                                        export RP_TOKEN=${RP_TOKEN}
-                                        export RP_PROJECT=test_automation
-                                        export LAUNCH_ID=${launchId}
-                                        export LAUNCH_UUID=${launchUuid}
+                                    // 💡 수정: launchId와 launchUuid가 유효한 경우에만 업로드 스크립트 실행
+                                    if (launchId && launchUuid) {
+                                        // 2. 나머지 모든 ReportPortal 연동/업로드/종료 작업을 하나의 sh 블록으로 통합 실행
+                                        sh """
+                                            export RP_ENDPOINT=http://localhost:8082/api/v1
+                                            export RP_TOKEN=${RP_TOKEN}
+                                            export RP_PROJECT=test_automation
+                                            export LAUNCH_ID=${launchId}
+                                            export LAUNCH_UUID=${launchUuid}
+                                            
+                                            echo "📦 Allure 리포트 ZIP 파일 생성..."
+                                            # 2초 대기 (파일 잠금 문제 해결)
+                                            sleep 2
+                                            cd allure-report && zip -r ../allure-report.zip . && cd ..
+                                            
+                                            echo "⚡️ Launch \$LAUNCH_ID 상태를 ACTIVE로 변경..."
+                                            node scripts/get-rp-id.js update \$LAUNCH_ID ACTIVE
+                                            echo "DEBUG: Launch \$LAUNCH_ID 상태를 ACTIVE로 변경 완료"
+                                            
+                                            echo "🔎 Test Item ID 조회..."
+                                            ITEM_ID=\$(node scripts/get-rp-id.js item \$LAUNCH_ID)
+                                            echo "DEBUG: Item ID: \$ITEM_ID"
+                                            
+                                            echo "📝 JSON 요청 파트 생성..."
+                                            NOW=\$(date -u +"%Y-%m-%dT%H:%M:%S.%3NZ")
+                                            
+                                            # JSON 파일 생성
+                                            echo "[{\\"itemUuid\\":\\"\$ITEM_ID\\",\\"launchUuid\\":\\"\$LAUNCH_UUID\\",\\"level\\":\\"INFO\\",\\"message\\":\\"Allure Report: allure-report.zip\\",\\"time\\":\\"\$NOW\\"}]" > rp-json-part.txt
+                                            
+                                            echo "📤 curl을 사용하여 ReportPortal에 파일 업로드 시작..."
+                                            # 💡 수정: HTTP 상태 코드를 명시적으로 확인하여 2xx가 아니면 실패 처리
+                                            HTTP_CODE=\$(curl -X POST "\$RP_ENDPOINT/\$RP_PROJECT/log" -H "Authorization: Bearer \$RP_TOKEN" -F "json_request_part=@rp-json-part.txt;type=application/json" -F "file=@allure-report.zip;filename=allure-report.zip;type=application/zip" -w "%{http_code}" -o /tmp/rp-upload-response.txt -s)
+                                            
+                                            if [ "\$HTTP_CODE" -lt 200 ] || [ "\$HTTP_CODE" -ge 300 ]; then
+                                                echo "❌ ReportPortal 업로드 실패: HTTP \$HTTP_CODE"
+                                                cat /tmp/rp-upload-response.txt
+                                                rm -f /tmp/rp-upload-response.txt
+                                                exit 1
+                                            else
+                                                echo "✅ ReportPortal 업로드 성공: HTTP \$HTTP_CODE"
+                                                cat /tmp/rp-upload-response.txt
+                                                rm -f /tmp/rp-upload-response.txt
+                                            fi
+                                            
+                                            echo "😴 Launch \$LAUNCH_ID 상태를 STOPPED로 변경..."
+                                            node scripts/get-rp-id.js update \$LAUNCH_ID STOPPED
+                                            echo "DEBUG: Launch \$LAUNCH_ID 상태를 STOPPED로 변경 완료"
+                                            
+                                            echo "✅ 임시 파일 삭제..."
+                                            rm -f allure-report.zip
+                                            rm -f rp-json-part.txt
+                                            echo "✅ 임시 파일 삭제 완료"
+                                        """
                                         
-                                        echo "📦 Allure 리포트 ZIP 파일 생성..."
-                                        # 2초 대기 (파일 잠금 문제 해결)
-                                        sleep 2
-                                        cd allure-report && zip -r ../allure-report.zip . && cd ..
-                                        
-                                        echo "⚡️ Launch \$LAUNCH_ID 상태를 ACTIVE로 변경..."
-                                        node scripts/get-rp-id.js update \$LAUNCH_ID ACTIVE
-                                        echo "DEBUG: Launch \$LAUNCH_ID 상태를 ACTIVE로 변경 완료"
-                                        
-                                        echo "🔎 Test Item ID 조회..."
-                                        ITEM_ID=\$(node scripts/get-rp-id.js item \$LAUNCH_ID)
-                                        echo "DEBUG: Item ID: \$ITEM_ID"
-                                        
-                                        echo "📝 JSON 요청 파트 생성..."
-                                        NOW=\$(date -u +"%Y-%m-%dT%H:%M:%S.%3NZ")
-                                        
-                                        # JSON 파일 생성
-                                        echo "[{\\"itemUuid\\":\\"\$ITEM_ID\\",\\"launchUuid\\":\\"\$LAUNCH_UUID\\",\\"level\\":\\"INFO\\",\\"message\\":\\"Allure Report: allure-report.zip\\",\\"time\\":\\"\$NOW\\"}]" > rp-json-part.txt
-                                        
-                                        echo "📤 curl을 사용하여 ReportPortal에 파일 업로드 시작..."
-                                        # curl을 한 줄로 실행 (구문 오류 방지)
-                                        curl -X POST "\$RP_ENDPOINT/\$RP_PROJECT/log" -H "Authorization: Bearer \$RP_TOKEN" -F "json_request_part=@rp-json-part.txt;type=application/json" -F "file=@allure-report.zip;filename=allure-report.zip;type=application/zip" -w "\\nHTTP Status: %{http_code}\\n" -v 2>&1 | grep -E "(HTTP|error|Error|ERROR|success|Success)" || true
-                                        echo "✅ curl 업로드 시도 완료 (로그 확인 필요)"
-                                        
-                                        echo "😴 Launch \$LAUNCH_ID 상태를 STOPPED로 변경..."
-                                        node scripts/get-rp-id.js update \$LAUNCH_ID STOPPED
-                                        echo "DEBUG: Launch \$LAUNCH_ID 상태를 STOPPED로 변경 완료"
-                                        
-                                        echo "✅ 임시 파일 삭제..."
-                                        rm -f allure-report.zip
-                                        rm -f rp-json-part.txt
-                                        echo "✅ 임시 파일 삭제 완료"
-                                    """
-                                    
-                                    echo "✅ 완료! Allure 리포트가 Launch ${launchId}에 첨부되었습니다."
+                                        echo "✅ 완료! Allure 리포트가 Launch ${launchId}에 첨부되었습니다."
+                                    } else {
+                                        echo "⚠️ Launch ID 또는 UUID가 유효하지 않아 업로드를 건너뜁니다. (launchId: ${launchId}, launchUuid: ${launchUuid})"
+                                    }
                                 }
                             } catch (Exception e) {
                                 // 여기서 실패 시: Agent 연결 끊김 또는 JSON 파싱 문제일 가능성이 높음
                                 // 안전한 에러 메시지 처리 (2차 오류 방지)
-                                def errorMessage = "알 수 없는 오류"
-                                def errorClass = "알 수 없음"
+                                String errorMessage = "Unknown error"
+                                String errorClass = "Unknown"
                                 try {
-                                    errorMessage = e.getMessage() ?: "알 수 없는 Groovy 오류. 상세 내용은 콘솔을 확인하세요."
+                                    errorMessage = e.getMessage() ?: "Unknown Groovy error. Please check console for details."
                                     errorClass = e.getClass().getName()
                                 } catch (Exception innerE) {
-                                    errorMessage = "예외 메시지를 가져올 수 없습니다: ${innerE.getClass().getName()}"
+                                    errorMessage = "Could not retrieve exception message: ${innerE.getClass().getName()}"
                                 }
                                 echo "ReportPortal에 Allure 리포트 첨부 실패: ${errorMessage}"
                                 echo "Error Class: ${errorClass}"
