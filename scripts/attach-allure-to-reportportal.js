@@ -83,46 +83,9 @@ async function findLaunchId(launchName) {
   }
 }
 
-async function findFirstTestItem(launchId) {
-  try {
-    // Launch의 첫 번째 test item 조회
-    const url = `${RP_ENDPOINT}/${RP_PROJECT}/item?filter.eq.launchId=${launchId}&page.size=1&page.sort=startTime,asc`;
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${RP_TOKEN}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`HTTP ${response.status}: ${errorText}`);
-    }
-
-    const data = await response.json();
-    
-    if (data.content && data.content.length > 0) {
-      const firstItem = data.content[0];
-      console.log(`✅ Test Item 찾음: ${firstItem.id} (${firstItem.name})`);
-      return firstItem.id;
-    } else {
-      // Test item이 없으면 launch의 root item ID 사용 (일반적으로 launch ID와 동일)
-      console.log(`⚠️  Test Item이 없어 Launch ID를 사용합니다: ${launchId}`);
-      return launchId;
-    }
-  } catch (error) {
-    console.error(`❌ Test Item 조회 실패: ${error.message}`);
-    // 실패 시 launchId 반환 (fallback)
-    return launchId;
-  }
-}
 
 async function attachFileToLaunch(launchId, filePath, fileName) {
   try {
-    // Launch에 직접 첨부하는 API가 없을 수 있으므로, 첫 번째 test item에 첨부 시도
-    const itemId = await findFirstTestItem(launchId);
-    
     // Node.js에서 multipart/form-data 생성
     const FormData = (await import('form-data')).default;
     const formData = new FormData();
@@ -132,11 +95,13 @@ async function attachFileToLaunch(launchId, filePath, fileName) {
       contentType: 'application/zip'
     });
 
-    // ReportPortal API: POST /{project}/item/{itemId}/attach
-    const url = `${RP_ENDPOINT}/${RP_PROJECT}/item/${itemId}/attach`;
+    // ReportPortal API 공식 문서 기준: POST /{project}/launch/{launchId}/attachment
+    // 참고: https://github.com/reportportal/reportportal/blob/master/docs/src/md/src/DevGuides/reporting.md
+    const url = `${RP_ENDPOINT}/${RP_PROJECT}/launch/${launchId}/attachment`;
     
     console.log(`📤 파일 업로드 중: ${fileName} (${(fs.statSync(filePath).size / 1024 / 1024).toFixed(2)} MB)`);
-    console.log(`   Target Item ID: ${itemId}`);
+    console.log(`   Target Launch ID: ${launchId}`);
+    console.log(`   API Endpoint: ${url}`);
     
     const response = await fetch(url, {
       method: 'POST',
