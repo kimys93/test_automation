@@ -184,9 +184,11 @@ pipeline {
                                             BUILD_NUMBER=\${BUILD_NUMBER:-1}
                                             ALLURE_REPORT_URL="\${JENKINS_URL}/job/\${JOB_NAME}/\${BUILD_NUMBER}/Allure_20Report/"
                                             
-                                            # JSON 파일 생성 (Jenkins 링크 포함 - ReportPortal이 URL을 자동으로 링크로 변환)
-                                            # ReportPortal은 일반적으로 http:// 또는 https://로 시작하는 URL을 자동으로 클릭 가능한 링크로 변환합니다
-                                            echo "[{\\"itemUuid\\":\\"\$ITEM_ID\\",\\"launchUuid\\":\\"\$LAUNCH_UUID\\",\\"level\\":\\"INFO\\",\\"message\\":\\"Allure Report: \${ALLURE_REPORT_URL}\\",\\"time\\":\\"\$NOW\\"}]" > rp-json-part.txt
+                                            # JSON 파일 생성 (HTML 링크 태그 시도 - ReportPortal이 필터링할 수 있음)
+                                            # cat과 heredoc을 사용하여 이스케이프 문제 해결
+                                            cat > rp-json-part.txt <<EOF
+[{"itemUuid":"\$ITEM_ID","launchUuid":"\$LAUNCH_UUID","level":"INFO","message":"Allure Report: <a href=\"\${ALLURE_REPORT_URL}\" target=\"_blank\">Open Allure Report</a>","time":"\$NOW"}]
+EOF
                                             
                                             echo "📤 ReportPortal에 Allure 리포트 링크 전송 중..."
                                             echo "DEBUG: JSON 요청 파트 내용 확인..."
