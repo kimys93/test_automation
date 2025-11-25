@@ -113,7 +113,10 @@ async function updateLaunchStatus(launchId, status) {
 async function main() {
   if (type === 'launch') {
     const result = await findLaunchId(identifier);
+    // JSON 문자열만 stdout으로 출력 (stderr는 디버그용)
     console.log(result); // JSON 문자열 출력: {"id":"31","uuid":"abc-123-def"}
+    // stderr로 디버그 정보 출력 (Jenkins에서 캡처되지 않음)
+    console.error(`DEBUG: Launch 정보 조회 완료: ${identifier}`);
   } else if (type === 'item') {
     const id = await findFirstTestItem(identifier);
     console.log(id);
@@ -126,6 +129,7 @@ async function main() {
     }
     await updateLaunchStatus(launchId, status);
     // update 명령은 출력 없이 성공/실패만 반환
+    console.error(`DEBUG: Launch ${launchId} 상태를 ${status}로 변경 완료`);
   } else {
     console.error('사용법: node get-rp-id.js [launch|item|update] [launchName|launchId|launchId] [status]');
     process.exit(1);

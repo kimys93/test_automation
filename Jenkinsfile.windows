@@ -108,10 +108,26 @@ pipeline {
                                         node scripts/get-rp-id.js launch sanity
                                     """).trim()
                                     
+                                    // 디버그: 캡처된 JSON 문자열 확인
+                                    echo "DEBUG: Captured RP Info JSON: [${rpInfoJson}]"
+                                    echo "DEBUG: JSON length: ${rpInfoJson.length()}"
+                                    
+                                    // JSON 문자열 정리 (불필요한 공백 및 특수문자 제거)
+                                    rpInfoJson = rpInfoJson.replaceAll(/[\r\n]/, '').trim()
+                                    
                                     // JSON 파싱을 위해 Groovy의 JsonSlurper 사용
-                                    def rpInfo = new groovy.json.JsonSlurper().parseText(rpInfoJson)
-                                    def launchId = rpInfo.id
-                                    def launchUuid = rpInfo.uuid
+                                    def rpInfo
+                                    try {
+                                        rpInfo = new groovy.json.JsonSlurper().parseText(rpInfoJson)
+                                        echo "DEBUG: Parsed Launch ID: ${rpInfo.id}, UUID: ${rpInfo.uuid}"
+                                    } catch (Exception e) {
+                                        echo "ERROR: JSON 파싱 실패: ${e.getMessage()}"
+                                        echo "ERROR: JSON 내용: ${rpInfoJson}"
+                                        throw e
+                                    }
+                                    
+                                    def launchId = rpInfo.id.toString()
+                                    def launchUuid = rpInfo.uuid.toString()
                                     
                                     // 2-1. Launch 상태를 ACTIVE로 변경 (Launch ID 사용)
                                     bat """
@@ -146,7 +162,9 @@ pipeline {
                                         curl -X POST "http://localhost:8082/api/v1/test_automation/log" ^
                                             -H "Authorization: Bearer %RP_TOKEN%" ^
                                             -F "json_request_part=@rp-json-part.txt;type=application/json" ^
-                                            -F "file=@allure-report.zip;filename=allure-report.zip;type=application/zip"
+                                            -F "file=@allure-report.zip;filename=allure-report.zip;type=application/zip" ^
+                                            -w "\nHTTP Status: %%{http_code}\n" ^
+                                            -v 2>&1 | findstr /i "HTTP error Error ERROR success Success" || echo Response received
                                         echo ✅ curl 업로드 완료
                                     """
                                     
