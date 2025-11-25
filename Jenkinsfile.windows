@@ -103,10 +103,12 @@ pipeline {
                         // stats 객체에서 기본 통계 가져오기
                         if (resultsJson.containsKey('stats')) {
                             def stats = resultsJson.stats
-                            totalTests = stats.expected ?: 0
+                            // Playwright stats 구조: passed, failed, skipped, expected, unexpected
+                            passedTests = stats.passed ?: 0
+                            failedTests = stats.failed ?: 0
                             skippedTests = stats.skipped ?: 0
-                            failedTests = stats.unexpected ?: 0
-                            passedTests = totalTests - failedTests - skippedTests
+                            // 총 테스트 수 = 통과 + 실패 + 건너뜀
+                            totalTests = passedTests + failedTests + skippedTests
                         }
                         
                         // 실패한 테스트 목록 수집 (중첩된 suites 구조 처리 - 반복문 사용)
