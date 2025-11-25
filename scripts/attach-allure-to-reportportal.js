@@ -136,8 +136,10 @@ async function attachFileToLaunch(launchId, filePath, fileName) {
     });
     
     // 필수 필드: json_request_part (JSON 문자열)
-    formData.append('json_request_part', jsonRequestPart, {
-      contentType: 'application/json'
+    // form-data 라이브러리에서 contentType은 options 객체의 속성으로 전달
+    formData.append('json_request_part', Buffer.from(jsonRequestPart, 'utf8'), {
+      contentType: 'application/json',
+      filename: 'request.json'
     });
     
     // 필수 필드: file (실제 파일)
@@ -145,6 +147,9 @@ async function attachFileToLaunch(launchId, filePath, fileName) {
       filename: fileName,
       contentType: 'application/zip'
     });
+    
+    // 디버깅: 전송할 데이터 확인
+    console.log(`   JSON Request Part: ${jsonRequestPart.substring(0, 100)}...`);
     
     // ReportPortal API: POST /{project}/log (multipart/form-data)
     const url = `${RP_ENDPOINT}/${RP_PROJECT}/log`;
