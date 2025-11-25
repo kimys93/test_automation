@@ -100,15 +100,20 @@ pipeline {
                                         cd allure-report && zip -r ../allure-report.zip . && cd ..
                                     """
                                     
-                                    // 2. Launch ID 조회
-                                    def launchId = sh(returnStdout: true, script: """
+                                    // 2. Launch ID 및 UUID 조회
+                                    def rpInfoJson = sh(returnStdout: true, script: """
                                         export RP_ENDPOINT=http://localhost:8082/api/v1
                                         export RP_TOKEN=${RP_TOKEN}
                                         export RP_PROJECT=test_automation
                                         node scripts/get-rp-id.js launch sanity
                                     """).trim()
                                     
-                                    // 2-1. Launch 상태를 ACTIVE로 변경 (종료된 Launch에 로그 첨부 가능하도록)
+                                    // JSON 파싱을 위해 Groovy의 JsonSlurper 사용
+                                    def rpInfo = new groovy.json.JsonSlurper().parseText(rpInfoJson)
+                                    def launchId = rpInfo.id
+                                    def launchUuid = rpInfo.uuid
+                                    
+                                    // 2-1. Launch 상태를 ACTIVE로 변경 (Launch ID 사용)
                                     sh """
                                         echo "⚡️ Launch ${launchId} 상태를 ACTIVE로 변경..."
                                         export RP_ENDPOINT=http://localhost:8082/api/v1
@@ -117,7 +122,7 @@ pipeline {
                                         node scripts/get-rp-id.js update ${launchId} ACTIVE
                                     """
                                     
-                                    // 2-2. Item ID 조회
+                                    // 2-2. Item ID 조회 (Launch ID 사용)
                                     def itemId = sh(returnStdout: true, script: """
                                         export RP_ENDPOINT=http://localhost:8082/api/v1
                                         export RP_TOKEN=${RP_TOKEN}
@@ -125,9 +130,9 @@ pipeline {
                                         node scripts/get-rp-id.js item ${launchId}
                                     """).trim()
                                     
-                                    // 3. JSON 요청 파트 구성 및 임시 파일로 저장
+                                    // 3. JSON 요청 파트 구성 및 임시 파일로 저장 (Launch UUID 사용)
                                     def now = new Date().format("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", TimeZone.getTimeZone('UTC'))
-                                    def jsonContent = """[{"itemUuid":"${itemId}","launchUuid":"${launchId}","level":"INFO","message":"Allure Report: allure-report.zip","time":"${now}"}]"""
+                                    def jsonContent = """[{"itemUuid":"${itemId}","launchUuid":"${launchUuid}","level":"INFO","message":"Allure Report: allure-report.zip","time":"${now}"}]"""
                                     
                                     // JSON을 임시 파일로 저장 (특수문자 이스케이프 문제 방지)
                                     writeFile file: 'rp-json-part.txt', text: jsonContent

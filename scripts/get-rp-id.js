@@ -43,7 +43,11 @@ async function findLaunchId(launchName) {
 
     const data = await response.json();
     if (data.content && data.content.length > 0) {
-      return data.content[0].id.toString();
+      // Launch ID와 UUID를 모두 반환 (JSON 객체)
+      return JSON.stringify({
+        id: data.content[0].id.toString(),
+        uuid: data.content[0].uuid
+      });
     } else {
       throw new Error(`Launch "${launchName}"을 찾을 수 없습니다.`);
     }
@@ -108,8 +112,8 @@ async function updateLaunchStatus(launchId, status) {
 
 async function main() {
   if (type === 'launch') {
-    const id = await findLaunchId(identifier);
-    console.log(id);
+    const result = await findLaunchId(identifier);
+    console.log(result); // JSON 문자열 출력: {"id":"31","uuid":"abc-123-def"}
   } else if (type === 'item') {
     const id = await findFirstTestItem(identifier);
     console.log(id);
