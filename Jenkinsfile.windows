@@ -109,29 +109,33 @@ pipeline {
                             passedTests = totalTests - failedTests - skippedTests
                         }
                         
-                        // 실패한 테스트 목록 수집 (중첩된 suites 구조 처리)
-                        def collectFailedTests = { suites ->
-                            if (suites instanceof List) {
-                                suites.each { suite ->
-                                    // 중첩된 suites 처리
-                                    if (suite.containsKey('suites') && suite.suites instanceof List) {
-                                        collectFailedTests(suite.suites)
-                                    }
-                                    // specs 처리
-                                    if (suite.containsKey('specs') && suite.specs instanceof List) {
-                                        suite.specs.each { spec ->
-                                            if (spec.containsKey('tests') && spec.tests instanceof List) {
-                                                spec.tests.each { test ->
-                                                    if (test.containsKey('results') && test.results instanceof List) {
-                                                        def finalResult = test.results[test.results.size() - 1]
-                                                        if (finalResult != null) {
-                                                            def resultStatus = finalResult.status ?: 'unknown'
-                                                            def testTitle = spec.title ?: 'Unknown Test'
-                                                            
-                                                            if (resultStatus == 'failed' || resultStatus == 'timedout' || resultStatus == 'interrupted') {
-                                                                failedTestList.add("• ${testTitle} [${resultStatus.capitalize()}]")
-                                                            }
-                                                        }
+                        // 실패한 테스트 목록 수집 (중첩된 suites 구조 처리 - 반복문 사용)
+                        def suitesToProcess = []
+                        if (resultsJson.containsKey('suites') && resultsJson.suites instanceof List) {
+                            suitesToProcess.addAll(resultsJson.suites)
+                        }
+                        
+                        while (!suitesToProcess.isEmpty()) {
+                            def currentSuite = suitesToProcess.remove(0)
+                            
+                            // 중첩된 suites 추가
+                            if (currentSuite.containsKey('suites') && currentSuite.suites instanceof List) {
+                                suitesToProcess.addAll(currentSuite.suites)
+                            }
+                            
+                            // specs 처리
+                            if (currentSuite.containsKey('specs') && currentSuite.specs instanceof List) {
+                                currentSuite.specs.each { spec ->
+                                    if (spec.containsKey('tests') && spec.tests instanceof List) {
+                                        spec.tests.each { test ->
+                                            if (test.containsKey('results') && test.results instanceof List) {
+                                                def finalResult = test.results[test.results.size() - 1]
+                                                if (finalResult != null) {
+                                                    def resultStatus = finalResult.status ?: 'unknown'
+                                                    def testTitle = spec.title ?: 'Unknown Test'
+                                                    
+                                                    if (resultStatus == 'failed' || resultStatus == 'timedout' || resultStatus == 'interrupted') {
+                                                        failedTestList.add("• ${testTitle} [${resultStatus.capitalize()}]")
                                                     }
                                                 }
                                             }
@@ -139,11 +143,6 @@ pipeline {
                                     }
                                 }
                             }
-                        }
-                        
-                        // 실패한 테스트 목록 수집
-                        if (resultsJson.containsKey('suites') && resultsJson.suites instanceof List) {
-                            collectFailedTests(resultsJson.suites)
                         }
                         
                         def testStatus = failedTests > 0 || skippedTests > 0 ? 'Fail' : 'Success'

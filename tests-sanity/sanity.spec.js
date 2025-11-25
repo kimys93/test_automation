@@ -60,17 +60,17 @@ test.describe('Sanity Test: 핵심 기능 워크플로우', () => {
         // 2. 로그인 성공 확인 (리디렉션 URL 확인)
         await expect(page).toHaveURL(/.*\/home|.*\/index/);
         
-        // 3. Storage State 저장 (다음 테스트에서 재사용)
+        // 3. Storage State 저장 (다음 테스트에서 test.use()로 자동 로드됨)
         await context.storageState({ path: authFile });
     });
 
     // --- 3. 핵심 기능: 글쓰기 및 목록 확인 (Storage State 자동 로드) ---
-    test('Sanity 03: 게시글 작성 및 목록 노출 확인', async ({ page, context }) => {
-        // Storage State 파일이 존재하는 경우에만 로드
-        const fs = await import('fs');
-        if (fs.existsSync(authFile)) {
-            await context.storageState({ path: authFile });
-        }
+    // 별도 describe 블록으로 분리하여 test.use() 적용
+    test.describe('Sanity Test: 로그인 후 기능 검증', () => {
+        // Storage State 자동 로드 (파일이 있어야 함)
+        test.use({ storageState: authFile });
+        
+        test('Sanity 03: 게시글 작성 및 목록 노출 확인', async ({ page }) => {
         const boardPage = new BoardPage(page);
         const writePage = new WritePage(page);
         
@@ -96,15 +96,10 @@ test.describe('Sanity Test: 핵심 기능 워크플로우', () => {
         const postTitleLocator = page.locator(`text=${sharedTestTitle}`).first();
         await expect(postTitleLocator).toBeVisible({ timeout: 5000 });
         await expect(boardPage.boardList).toContainText(sharedTestTitle);
-    });
+        });
 
-    // --- 4. 핵심 기능: 상세 조회 및 댓글 작성 (Storage State 자동 로드) ---
-    test('Sanity 04: 게시글 상세 조회 및 댓글 작성 확인', async ({ page, context }) => {
-        // Storage State 파일이 존재하는 경우에만 로드
-        const fs = await import('fs');
-        if (fs.existsSync(authFile)) {
-            await context.storageState({ path: authFile });
-        }
+        // --- 4. 핵심 기능: 상세 조회 및 댓글 작성 (Storage State 자동 로드) ---
+        test('Sanity 04: 게시글 상세 조회 및 댓글 작성 확인', async ({ page }) => {
         const boardPage = new BoardPage(page);
         const detailPage = new DetailPage(page);
 
@@ -126,5 +121,6 @@ test.describe('Sanity Test: 핵심 기능 워크플로우', () => {
 
         // 4. 작성한 댓글이 목록에 나타나는지 확인
         await expect(detailPage.commentsList).toContainText(commentText, { timeout: 3000 });
+        });
     });
 });
