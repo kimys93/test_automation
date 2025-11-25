@@ -13,6 +13,9 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
+import http from 'http';
+import https from 'https';
+import { URL } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -147,30 +150,57 @@ async function attachFileToLaunch(launchId, filePath, fileName) {
     console.log(`   JSON Request Part: ${jsonRequestPart.substring(0, 100)}...`);
     
     // ReportPortal API: POST /{project}/log (multipart/form-data)
-    const url = `${RP_ENDPOINT}/${RP_PROJECT}/log`;
+    // Gemini 해결책: fetch 대신 http/https 모듈 사용하여 form-data를 직접 pipe
+    const urlObject = new URL(`${RP_ENDPOINT}/${RP_PROJECT}/log`);
+    const protocol = urlObject.protocol === 'https:' ? https : http;
     
+    const requestOptions = {
+      method: 'POST',
+      host: urlObject.hostname,
+      port: urlObject.port || (protocol === https ? 443 : 80),
+      path: urlObject.pathname + urlObject.search,
+      headers: {
+        'Authorization': `Bearer ${RP_TOKEN}`,
+        ...formData.getHeaders() // Content-Type 헤더가 포함됨
+      }
+    };
+
     console.log(`📤 파일 업로드 중: ${fileName} (${(fs.statSync(filePath).size / 1024 / 1024).toFixed(2)} MB)`);
     console.log(`   Target Launch ID: ${launchId}`);
     console.log(`   Target Item ID: ${itemId}`);
-    console.log(`   API Endpoint: ${url}`);
+    console.log(`   API Endpoint: ${urlObject.href}`);
     
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${RP_TOKEN}`,
-        ...formData.getHeaders()
-      },
-      body: formData
+    // Promise로 래핑하여 응답 처리
+    return new Promise((resolve, reject) => {
+      const req = protocol.request(requestOptions, (res) => {
+        let responseBody = '';
+        
+        res.on('data', (chunk) => {
+          responseBody += chunk.toString();
+        });
+        
+        res.on('end', () => {
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            console.log(`✅ 파일 첨부 완료: ${fileName}`);
+            try {
+              const result = responseBody ? JSON.parse(responseBody) : { message: 'Success (no JSON body)' };
+              resolve(result);
+            } catch (e) {
+              resolve({ message: 'Success (invalid JSON response)' });
+            }
+          } else {
+            reject(new Error(`HTTP ${res.statusCode}: ${responseBody}`));
+          }
+        });
+      });
+
+      req.on('error', (err) => {
+        reject(new Error(`요청 오류: ${err.message}`));
+      });
+      
+      // formData 스트림을 요청에 파이프합니다 (핵심!)
+      formData.pipe(req);
     });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`HTTP ${response.status}: ${errorText}`);
-    }
-
-    const result = await response.json();
-    console.log(`✅ 파일 첨부 완료: ${fileName}`);
-    return result;
   } catch (error) {
     console.error(`❌ 파일 첨부 실패: ${error.message}`);
     throw error;
