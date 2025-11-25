@@ -136,15 +136,11 @@ async function attachFileToLaunch(launchId, filePath, fileName) {
     });
     
     // 필수 필드: json_request_part (JSON 문자열)
-    // Gemini 제안: Buffer를 사용하여 Content-Type을 명시적으로 설정
-    // ReportPortal v5.14 API는 json_request_part를 application/json으로 기대
-    const jsonBuffer = Buffer.from(jsonRequestPart, 'utf-8');
-    formData.append('json_request_part', jsonBuffer, {
-      filename: 'json_request_part',
-      contentType: 'application/json'
-    });
+    // Gemini 해결책: filename 없이 일반 텍스트 파트로 추가
+    // ReportPortal은 이 파트를 파일이 아닌 메타데이터로 인식해야 함
+    formData.append('json_request_part', jsonRequestPart);
     
-    // 필수 필드: file (실제 파일)
+    // 필수 필드: file (실제 파일) - 파일 스트림과 파일 이름을 전달하여 파일 파트로 구성
     formData.append('file', fs.createReadStream(filePath), fileName);
     
     // 디버깅: 전송할 데이터 확인
