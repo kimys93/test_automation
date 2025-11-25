@@ -101,8 +101,8 @@ pipeline {
                                 withCredentials([string(credentialsId: 'slack-reportportal-token', variable: 'RP_TOKEN')]) {
                                     // 1. Launch ID 및 UUID 조회 (이 부분만 Groovy에서 수행)
                                     // Node.js 경고 억제 및 순수 JSON 출력만 캡처
-                                    // Launch 이름: test-run-{BUILD_NUMBER} 형식으로 찾기
-                                    def launchName = "test-run-${BUILD_NUMBER}"
+                                    // Launch 이름: sanity (playwright.config.js에서 하드코딩된 이름과 일치)
+                                    def launchName = "sanity"
                                     echo "DEBUG: Searching for Launch: ${launchName}"
                                     
                                     def rpInfoJson = sh(returnStdout: true, script: """
