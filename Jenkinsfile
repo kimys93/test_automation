@@ -16,7 +16,7 @@ pipeline {
         GIT_COMMIT = "${env.GIT_COMMIT}"
         
         // ReportPortal 설정
-        RP_ENDPOINT = "${env.RP_ENDPOINT ?: 'http://localhost:8082/api/v1'}"
+        RP_ENDPOINT = "${env.RP_ENDPOINT ?: 'http://10.10.0.30:8082/api/v1'}"
         // RP_TOKEN은 Jenkins Credential로 관리 (credential ID: 'reportportal-token')
         // RP_ENABLED, RP_PROJECT, RP_LAUNCH, RP_DEBUG는 코드에 하드코딩됨
     }
@@ -48,7 +48,7 @@ pipeline {
                         withCredentials([string(credentialsId: 'slack-reportportal-token', variable: 'RP_TOKEN')]) {
                             sh """
                                 export RP_ENABLED=true
-                                export RP_ENDPOINT=http://localhost:8082/api/v1
+                                export RP_ENDPOINT=http://10.10.0.30:8082/api/v1
                                 export RP_TOKEN=${RP_TOKEN}
                                 export RP_PROJECT=test_automation
                                 export RP_LAUNCH=test-run-${BUILD_NUMBER}
@@ -106,7 +106,7 @@ pipeline {
                                     echo "DEBUG: Searching for Launch: ${launchName}"
                                     
                                     def rpInfoJson = sh(returnStdout: true, script: """
-                                        export RP_ENDPOINT=http://localhost:8082/api/v1
+                                        export RP_ENDPOINT=http://10.10.0.30:8082/api/v1
                                         export RP_TOKEN=${RP_TOKEN}
                                         export RP_PROJECT=test_automation
                                         # Node.js 경고 억제 옵션 추가 (stderr는 별도로 확인)
@@ -160,7 +160,7 @@ pipeline {
                                     if (launchId && launchUuid) {
                                         // 2. 나머지 모든 ReportPortal 연동/업로드/종료 작업을 하나의 sh 블록으로 통합 실행
                                         sh """
-                                            export RP_ENDPOINT=http://localhost:8082/api/v1
+                                            export RP_ENDPOINT=http://10.10.0.30:8082/api/v1
                                             export RP_TOKEN=${RP_TOKEN}
                                             export RP_PROJECT=test_automation
                                             export LAUNCH_ID=${launchId}
@@ -234,7 +234,7 @@ pipeline {
                                         withCredentials([string(credentialsId: 'slack-reportportal-token', variable: 'RP_TOKEN')]) {
                                             sh """
                                                 echo "⚠️ 오류 발생 후 Launch ${launchId} 상태를 STOPPED로 강제 변경 시도..."
-                                                export RP_ENDPOINT=http://localhost:8082/api/v1
+                                                export RP_ENDPOINT=http://10.10.0.30:8082/api/v1
                                                 export RP_TOKEN=${RP_TOKEN}
                                                 export RP_PROJECT=test_automation
                                                 node scripts/get-rp-id.js update ${launchId} STOPPED
@@ -330,7 +330,7 @@ pipeline {
                         def jobName = env.JOB_NAME ?: 'test_automation'
                         def buildNumber = env.BUILD_NUMBER ?: '1'
                         def playwrightReportUrl = "${jenkinsUrl}/job/${jobName}/${buildNumber}/Playwright_20Report/"
-                        def reportPortalUrl = "http://localhost:8082/ui/#test_automation/launches/all"
+                        def reportPortalUrl = "http://10.10.0.30:8082/ui/#test_automation/launches/all"
                         
                         // 실패한 테스트 리스트 메시지 구성
                         def failureListMessage = ""
