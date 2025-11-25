@@ -119,17 +119,28 @@ async function findFirstTestItem(launchId) {
 async function attachFileToLaunch(launchId, filePath, fileName) {
   try {
     // ReportPortal v5 API: 파일 첨부는 multipart/form-data로 로그 엔드포인트를 통해 이루어짐
+    // 필수 필드: json_request_part (JSON 문자열)와 file (실제 파일)
     const itemId = await findFirstTestItem(launchId);
     
     // Node.js에서 multipart/form-data 생성
     const FormData = (await import('form-data')).default;
     const formData = new FormData();
     
-    // ReportPortal log API에 필요한 필드들
-    formData.append('itemUuid', itemId.toString());
-    formData.append('launchUuid', launchId.toString());
-    formData.append('level', 'INFO');
-    formData.append('message', `Allure Report: ${fileName}`);
+    // ReportPortal log API에 필요한 JSON 메타데이터
+    const jsonRequestPart = JSON.stringify({
+      itemUuid: itemId.toString(),
+      launchUuid: launchId.toString(),
+      level: 'INFO',
+      message: `Allure Report: ${fileName}`,
+      time: new Date().toISOString()
+    });
+    
+    // 필수 필드: json_request_part (JSON 문자열)
+    formData.append('json_request_part', jsonRequestPart, {
+      contentType: 'application/json'
+    });
+    
+    // 필수 필드: file (실제 파일)
     formData.append('file', fs.createReadStream(filePath), {
       filename: fileName,
       contentType: 'application/zip'
