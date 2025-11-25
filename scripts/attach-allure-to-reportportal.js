@@ -84,23 +84,63 @@ async function findLaunchId(launchName) {
 }
 
 
+async function findFirstTestItem(launchId) {
+  try {
+    // Launch의 첫 번째 test item 조회
+    const url = `${RP_ENDPOINT}/${RP_PROJECT}/item?filter.eq.launchId=${launchId}&page.size=1&page.sort=startTime,asc`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${RP_TOKEN}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
+
+    const data = await response.json();
+    
+    if (data.content && data.content.length > 0) {
+      const firstItem = data.content[0];
+      console.log(`✅ Test Item 찾음: ${firstItem.id} (${firstItem.name})`);
+      return firstItem.id;
+    } else {
+      throw new Error('Test Item을 찾을 수 없습니다.');
+    }
+  } catch (error) {
+    console.error(`❌ Test Item 조회 실패: ${error.message}`);
+    throw error;
+  }
+}
+
 async function attachFileToLaunch(launchId, filePath, fileName) {
   try {
+    // ReportPortal v5 API: 파일 첨부는 multipart/form-data로 로그 엔드포인트를 통해 이루어짐
+    const itemId = await findFirstTestItem(launchId);
+    
     // Node.js에서 multipart/form-data 생성
     const FormData = (await import('form-data')).default;
     const formData = new FormData();
     
+    // ReportPortal log API에 필요한 필드들
+    formData.append('itemUuid', itemId.toString());
+    formData.append('launchUuid', launchId.toString());
+    formData.append('level', 'INFO');
+    formData.append('message', `Allure Report: ${fileName}`);
     formData.append('file', fs.createReadStream(filePath), {
       filename: fileName,
       contentType: 'application/zip'
     });
-
-    // ReportPortal API 공식 문서 기준: POST /{project}/launch/{launchId}/attachment
-    // 참고: https://github.com/reportportal/reportportal/blob/master/docs/src/md/src/DevGuides/reporting.md
-    const url = `${RP_ENDPOINT}/${RP_PROJECT}/launch/${launchId}/attachment`;
+    
+    // ReportPortal API: POST /{project}/log (multipart/form-data)
+    const url = `${RP_ENDPOINT}/${RP_PROJECT}/log`;
     
     console.log(`📤 파일 업로드 중: ${fileName} (${(fs.statSync(filePath).size / 1024 / 1024).toFixed(2)} MB)`);
     console.log(`   Target Launch ID: ${launchId}`);
+    console.log(`   Target Item ID: ${itemId}`);
     console.log(`   API Endpoint: ${url}`);
     
     const response = await fetch(url, {
@@ -117,13 +157,7 @@ async function attachFileToLaunch(launchId, filePath, fileName) {
       throw new Error(`HTTP ${response.status}: ${errorText}`);
     }
 
-    // 응답이 비어있을 수 있음
-    let result = null;
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('application/json')) {
-      result = await response.json();
-    }
-
+    const result = await response.json();
     console.log(`✅ 파일 첨부 완료: ${fileName}`);
     return result;
   } catch (error) {
