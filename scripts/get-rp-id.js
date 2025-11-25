@@ -6,7 +6,13 @@
  *   node scripts/get-rp-id.js launch <launchName>        // Launch ID 반환
  *   node scripts/get-rp-id.js item <launchId>            // Item ID 반환
  *   node scripts/get-rp-id.js update <launchId> <status> // Launch 상태 업데이트 (ACTIVE/STOPPED)
+ * 
+ * 주의: 이 스크립트는 stdout에 순수한 JSON 문자열만 출력합니다.
+ * 디버그 메시지는 stderr로 출력되므로 Jenkins의 returnStdout 캡처에 포함되지 않습니다.
  */
+
+// Node.js 경고 억제 (환경 변수로도 제어 가능)
+process.removeAllListeners('warning');
 
 // 환경 변수 확인
 const RP_ENDPOINT = process.env.RP_ENDPOINT || 'http://localhost:8082/api/v1';

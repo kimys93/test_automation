@@ -97,27 +97,52 @@ pipeline {
                             try {
                                 withCredentials([string(credentialsId: 'reportportal-token', variable: 'RP_TOKEN')]) {
                                     // 1. Launch ID 및 UUID 조회 (이 부분만 Groovy에서 수행)
+                                    // Node.js 경고 억제 및 순수 JSON 출력만 캡처
                                     def rpInfoJson = bat(returnStdout: true, script: """
                                         @echo off
                                         set RP_ENDPOINT=http://localhost:8082/api/v1
                                         set RP_TOKEN=%RP_TOKEN%
                                         set RP_PROJECT=test_automation
-                                        node scripts/get-rp-id.js launch sanity
+                                        REM Node.js 경고 억제 옵션 추가
+                                        node --no-warnings scripts/get-rp-id.js launch sanity 2>nul
                                     """).trim()
                                     
-                                    echo "DEBUG: Captured RP Info JSON: [${rpInfoJson}]"
+                                    echo "DEBUG: Captured RP Info JSON (raw): [${rpInfoJson}]"
+                                    echo "DEBUG: JSON length: ${rpInfoJson.length()}"
                                     
-                                    // JSON 문자열 정리 및 파싱 시도
+                                    // JSON 문자열 정리 및 파싱 시도 (강화된 버전)
                                     def rpInfo
                                     try {
-                                        rpInfoJson = rpInfoJson.replaceAll(/\s+/, ' ').trim()
+                                        // 1단계: 모든 제어 문자 및 불필요한 공백 제거
+                                        rpInfoJson = rpInfoJson.replaceAll(/[\r\n\t]/, '').replaceAll(/\s+/, ' ').trim()
+                                        
+                                        // 2단계: JSON 객체 부분만 추출 (중괄호로 시작하고 끝나는 부분)
+                                        def jsonMatch = rpInfoJson =~ /\{.*\}/
+                                        if (jsonMatch) {
+                                            rpInfoJson = jsonMatch[0]
+                                        }
+                                        
+                                        // 3단계: 최종 정리
+                                        rpInfoJson = rpInfoJson.trim()
+                                        
+                                        echo "DEBUG: Cleaned JSON: [${rpInfoJson}]"
+                                        
+                                        // 4단계: JSON 파싱
                                         rpInfo = new groovy.json.JsonSlurper().parseText(rpInfoJson)
+                                        
+                                        // 5단계: 필수 필드 검증
+                                        if (!rpInfo.id || !rpInfo.uuid) {
+                                            throw new Exception("JSON에 필수 필드(id, uuid)가 없습니다.")
+                                        }
+                                        
                                         launchId = rpInfo.id.toString()
                                         launchUuid = rpInfo.uuid.toString()
                                         echo "DEBUG: Parsed Launch ID: ${launchId}, UUID: ${launchUuid}"
                                     } catch (Exception e) {
                                         echo "ERROR: JSON 파싱 실패: ${e.getMessage()}"
-                                        echo "ERROR: JSON 내용: ${rpInfoJson}"
+                                        echo "ERROR: Exception class: ${e.getClass().getName()}"
+                                        echo "ERROR: JSON 내용 (원본): [${rpInfoJson}]"
+                                        echo "ERROR: JSON 내용 (hex): ${rpInfoJson.bytes.collect { String.format('%02x', it) }.join(' ')}"
                                         throw new Exception("ReportPortal 정보 파싱 실패 - 콘솔 출력을 확인하세요.", e)
                                     }
                                     
