@@ -100,7 +100,7 @@ pipeline {
                                         cd allure-report && zip -r ../allure-report.zip . && cd ..
                                     """
                                     
-                                    // 2. Launch ID와 Item ID 조회
+                                    // 2. Launch ID 조회
                                     def launchId = sh(returnStdout: true, script: """
                                         export RP_ENDPOINT=http://localhost:8082/api/v1
                                         export RP_TOKEN=${RP_TOKEN}
@@ -108,6 +108,16 @@ pipeline {
                                         node scripts/get-rp-id.js launch sanity
                                     """).trim()
                                     
+                                    // 2-1. Launch 상태를 ACTIVE로 변경 (종료된 Launch에 로그 첨부 가능하도록)
+                                    sh """
+                                        echo "⚡️ Launch ${launchId} 상태를 ACTIVE로 변경..."
+                                        export RP_ENDPOINT=http://localhost:8082/api/v1
+                                        export RP_TOKEN=${RP_TOKEN}
+                                        export RP_PROJECT=test_automation
+                                        node scripts/get-rp-id.js update ${launchId} ACTIVE
+                                    """
+                                    
+                                    // 2-2. Item ID 조회
                                     def itemId = sh(returnStdout: true, script: """
                                         export RP_ENDPOINT=http://localhost:8082/api/v1
                                         export RP_TOKEN=${RP_TOKEN}
@@ -132,7 +142,16 @@ pipeline {
                                         echo "✅ curl 업로드 완료"
                                     """
                                     
-                                    // 5. 임시 파일 삭제
+                                    // 5. Launch 상태를 STOPPED로 다시 변경
+                                    sh """
+                                        echo "😴 Launch ${launchId} 상태를 STOPPED로 변경..."
+                                        export RP_ENDPOINT=http://localhost:8082/api/v1
+                                        export RP_TOKEN=${RP_TOKEN}
+                                        export RP_PROJECT=test_automation
+                                        node scripts/get-rp-id.js update ${launchId} STOPPED
+                                    """
+                                    
+                                    // 6. 임시 파일 삭제
                                     sh """
                                         rm -f allure-report.zip
                                         rm -f rp-json-part.txt

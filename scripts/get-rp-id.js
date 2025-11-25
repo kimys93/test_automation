@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 /**
- * ReportPortal Launch ID 또는 Item ID를 조회하는 보조 스크립트
+ * ReportPortal Launch ID 또는 Item ID를 조회하고, Launch 상태를 업데이트하는 보조 스크립트
  * 
  * 사용법:
- *   node scripts/get-rp-id.js launch <launchName>  // Launch ID 반환
- *   node scripts/get-rp-id.js item <launchId>      // Item ID 반환
+ *   node scripts/get-rp-id.js launch <launchName>        // Launch ID 반환
+ *   node scripts/get-rp-id.js item <launchId>            // Item ID 반환
+ *   node scripts/get-rp-id.js update <launchId> <status> // Launch 상태 업데이트 (ACTIVE/STOPPED)
  */
 
 // 환경 변수 확인
@@ -79,20 +80,52 @@ async function findFirstTestItem(launchId) {
   }
 }
 
-async function main() {
-  let id;
-  
-  if (type === 'launch') {
-    id = await findLaunchId(identifier);
-  } else if (type === 'item') {
-    id = await findFirstTestItem(identifier);
-  } else {
-    console.error('사용법: node get-rp-id.js [launch|item] [launchName|launchId]');
+async function updateLaunchStatus(launchId, status) {
+  try {
+    const url = `${RP_ENDPOINT}/${RP_PROJECT}/launch/${launchId}/update`;
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${RP_TOKEN}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        status: status // 'ACTIVE' 또는 'STOPPED'
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
+
+    // 성공 시 아무것도 출력하지 않음 (ID만 출력하는 것이 목적)
+  } catch (error) {
+    console.error(`❌ Launch 상태 업데이트 실패: ${error.message}`);
     process.exit(1);
   }
-  
-  // ID만 표준 출력으로 내보냅니다 (Jenkins에서 캡처용)
-  console.log(id);
+}
+
+async function main() {
+  if (type === 'launch') {
+    const id = await findLaunchId(identifier);
+    console.log(id);
+  } else if (type === 'item') {
+    const id = await findFirstTestItem(identifier);
+    console.log(id);
+  } else if (type === 'update') {
+    const launchId = identifier;
+    const status = process.argv[4]; // 'ACTIVE' or 'STOPPED'
+    if (!status || (status !== 'ACTIVE' && status !== 'STOPPED')) {
+      console.error('사용법: node get-rp-id.js update <launchId> [ACTIVE|STOPPED]');
+      process.exit(1);
+    }
+    await updateLaunchStatus(launchId, status);
+    // update 명령은 출력 없이 성공/실패만 반환
+  } else {
+    console.error('사용법: node get-rp-id.js [launch|item|update] [launchName|launchId|launchId] [status]');
+    process.exit(1);
+  }
 }
 
 main();
