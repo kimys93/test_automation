@@ -187,8 +187,14 @@ pipeline {
                                             echo "[{\\"itemUuid\\":\\"\$ITEM_ID\\",\\"launchUuid\\":\\"\$LAUNCH_UUID\\",\\"level\\":\\"INFO\\",\\"message\\":\\"Allure Report: allure-report.tar.gz\\",\\"time\\":\\"\$NOW\\"}]" > rp-json-part.txt
                                             
                                             echo "📤 curl을 사용하여 ReportPortal에 파일 업로드 시작..."
+                                            echo "DEBUG: 파일 크기 확인..."
+                                            ls -lh allure-report.tar.gz
+                                            echo "DEBUG: JSON 요청 파트 내용 확인..."
+                                            cat rp-json-part.txt
+                                            
                                             # 💡 수정: HTTP 상태 코드를 명시적으로 확인하여 2xx가 아니면 실패 처리
-                                            HTTP_CODE=\$(curl -X POST "\$RP_ENDPOINT/\$RP_PROJECT/log" -H "Authorization: Bearer \$RP_TOKEN" -F "json_request_part=@rp-json-part.txt;type=application/json" -F "file=@allure-report.tar.gz;filename=allure-report.tar.gz;type=application/gzip" -w "%{http_code}" -o /tmp/rp-upload-response.txt -s)
+                                            # Content-Type을 application/octet-stream으로 변경 (ReportPortal 호환성)
+                                            HTTP_CODE=\$(curl -X POST "\$RP_ENDPOINT/\$RP_PROJECT/log" -H "Authorization: Bearer \$RP_TOKEN" -F "json_request_part=@rp-json-part.txt;type=application/json" -F "file=@allure-report.tar.gz;filename=allure-report.tar.gz;type=application/octet-stream" -w "%{http_code}" -o /tmp/rp-upload-response.txt -s)
                                             
                                             if [ "\$HTTP_CODE" -lt 200 ] || [ "\$HTTP_CODE" -ge 300 ]; then
                                                 echo "❌ ReportPortal 업로드 실패: HTTP \$HTTP_CODE"
@@ -197,6 +203,7 @@ pipeline {
                                                 exit 1
                                             else
                                                 echo "✅ ReportPortal 업로드 성공: HTTP \$HTTP_CODE"
+                                                echo "DEBUG: 응답 내용:"
                                                 cat /tmp/rp-upload-response.txt
                                                 rm -f /tmp/rp-upload-response.txt
                                             fi
