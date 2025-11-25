@@ -240,8 +240,14 @@ EOF
                                 } catch (Exception innerE) {
                                     errorMessage = "Could not retrieve exception message: ${innerE.getClass().getName()}"
                                 }
-                                echo "ReportPortal에 Allure 리포트 첨부 실패: ${errorMessage}"
-                                echo "Error Class: ${errorClass}"
+                                
+                                // 💡 수정: Groovy의 String Interpolation으로 인한 2차 오류를 방지하기 위해 
+                                // echo 문에서 String Interpolation이 아닌, 단순 문자열을 먼저 선언하고 출력
+                                String failureMessage = "ReportPortal에 Allure 리포트 첨부 실패: ${errorMessage}"
+                                String classMessage = "Error Class: ${errorClass}"
+                                
+                                echo failureMessage
+                                echo classMessage
                                 // 실패했더라도 Launch 상태를 STOPPED로 변경하는 것을 시도합니다.
                                 try {
                                     // 💡 수정: 환경 변수를 사용하여 유효성 검사 및 쉘 스크립트에 전달
@@ -258,7 +264,9 @@ EOF
                                         }
                                     }
                                 } catch (Exception innerE) {
-                                    echo "ReportPortal Launch 상태 강제 STOPPED 실패: ${innerE.getMessage()}"
+                                    // 안전한 에러 메시지 처리
+                                    String stopErrorMessage = innerE.getMessage() ?: "Unknown error"
+                                    echo "ReportPortal Launch 상태 강제 STOPPED 실패: ${stopErrorMessage}"
                                 }
                             }
                             
