@@ -89,9 +89,9 @@ pipeline {
                         
                         // Allure 리포트가 생성되었는지 확인
                         if (fileExists('allure-report')) {
-                            // 💡 수정: 변수를 try 블록 밖에서 null로 초기화합니다.
-                            def launchId = null
-                            def launchUuid = null
+                            // 💡 수정: 변수를 try 블록 밖에서 null로 초기화합니다. String 타입 명시로 직렬화 문제 해결
+                            String launchId = null
+                            String launchUuid = null
                             
                             // Allure 리포트를 ReportPortal에 첨부 (curl 사용)
                             try {
@@ -154,52 +154,52 @@ pipeline {
                                     // bat 스크립트를 파일로 작성하여 변수 보간 문제 해결
                                     // 삼중 작은따옴표를 사용하여 Groovy 변수 보간 비활성화
                                     def batScriptContent = '''@echo off
-setlocal enabledelayedexpansion
-set RP_ENDPOINT=http://localhost:8082/api/v1
-set RP_TOKEN=%RP_TOKEN%
-set RP_PROJECT=test_automation
-set LAUNCH_ID=''' + launchIdStr + '''
+                                    setlocal enabledelayedexpansion
+                                    set RP_ENDPOINT=http://localhost:8082/api/v1
+                                    set RP_TOKEN=%RP_TOKEN%
+                                    set RP_PROJECT=test_automation
+                                    set LAUNCH_ID=''' + launchIdStr + '''
 
-set LAUNCH_UUID=''' + launchUuidStr + '''
+                                    set LAUNCH_UUID=''' + launchUuidStr + '''
 
-                                        
-echo Creating Allure report ZIP file...
-REM Wait 2 seconds (to resolve file lock issue)
-timeout /t 2 /nobreak >nul
-powershell Compress-Archive -Path "allure-report\\*" -DestinationPath "allure-report.zip" -Force
+                                                                            
+                                    echo Creating Allure report ZIP file...
+                                    REM Wait 2 seconds (to resolve file lock issue)
+                                    timeout /t 2 /nobreak >nul
+                                    powershell Compress-Archive -Path "allure-report\\*" -DestinationPath "allure-report.zip" -Force
 
-echo Changing Launch !LAUNCH_ID! status to ACTIVE...
-node scripts/get-rp-id.js update !LAUNCH_ID! ACTIVE
-echo DEBUG: Launch !LAUNCH_ID! status changed to ACTIVE
+                                    echo Changing Launch !LAUNCH_ID! status to ACTIVE...
+                                    node scripts/get-rp-id.js update !LAUNCH_ID! ACTIVE
+                                    echo DEBUG: Launch !LAUNCH_ID! status changed to ACTIVE
 
-echo Retrieving Test Item ID...
-for /f "delims=" %%i in ('node scripts/get-rp-id.js item !LAUNCH_ID!') do set ITEM_ID=%%i
-echo DEBUG: Item ID: !ITEM_ID!
+                                    echo Retrieving Test Item ID...
+                                    for /f "delims=" %%i in ('node scripts/get-rp-id.js item !LAUNCH_ID!') do set ITEM_ID=%%i
+                                    echo DEBUG: Item ID: !ITEM_ID!
 
-echo Creating JSON request part...
-REM Generate current time in ISO 8601 format (using PowerShell)
-for /f "delims=" %%t in ('powershell -Command "Get-Date -Format 'yyyy-MM-ddTHH:mm:ss.fffZ'"') do set NOW=%%t
+                                    echo Creating JSON request part...
+                                    REM Generate current time in ISO 8601 format (using PowerShell)
+                                    for /f "delims=" %%t in ('powershell -Command "Get-Date -Format 'yyyy-MM-ddTHH:mm:ss.fffZ'"') do set NOW=%%t
 
-REM Create JSON file
-echo [{"itemUuid":"!ITEM_ID!","launchUuid":"!LAUNCH_UUID!","level":"INFO","message":"Allure Report: allure-report.zip","time":"!NOW!"}] > rp-json-part.txt
+                                    REM Create JSON file
+                                    echo [{"itemUuid":"!ITEM_ID!","launchUuid":"!LAUNCH_UUID!","level":"INFO","message":"Allure Report: allure-report.zip","time":"!NOW!"}] > rp-json-part.txt
 
-echo Starting ReportPortal file upload using PowerShell...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$$logJson = Get-Content -Path 'rp-json-part.txt' -Raw; $$uri = '!RP_ENDPOINT!/!RP_PROJECT!/log'; $$headers = @{Authorization='Bearer !RP_TOKEN!'}; $$form = @{json_request_part = $$logJson; file = Get-Item 'allure-report.zip'}; try { $$response = Invoke-RestMethod -Uri $$uri -Method Post -Headers $$headers -Form $$form -ErrorAction Stop; Write-Host 'ReportPortal upload successful'; Write-Host 'Response:' ($$response | Out-String) } catch { Write-Host 'ReportPortal upload failed:'; Write-Host $$_.Exception.Message; if ($$_.Exception.ErrorDetails) { Write-Host ($$_.Exception.ErrorDetails | Out-String) }; if ($$_.Exception.Response) { $$reader = New-Object System.IO.StreamReader($$_.Exception.Response.GetResponseStream()); $$responseBody = $$reader.ReadToEnd(); Write-Host 'Response Status Code:' $$_.Exception.Response.StatusCode.value__; Write-Host 'Response Body:' $$responseBody } else { Write-Host 'Response is NULL' }; exit 1 }"
-if !ERRORLEVEL! NEQ 0 (
-    echo PowerShell upload failed (exit code: !ERRORLEVEL!)
-    exit /b 1
-)
-echo PowerShell upload attempt completed
+                                    echo Starting ReportPortal file upload using PowerShell...
+                                    powershell -NoProfile -ExecutionPolicy Bypass -Command "$$logJson = Get-Content -Path 'rp-json-part.txt' -Raw; $$uri = '!RP_ENDPOINT!/!RP_PROJECT!/log'; $$headers = @{Authorization='Bearer !RP_TOKEN!'}; $$form = @{json_request_part = $$logJson; file = Get-Item 'allure-report.zip'}; try { $$response = Invoke-RestMethod -Uri $$uri -Method Post -Headers $$headers -Form $$form -ErrorAction Stop; Write-Host 'ReportPortal upload successful'; Write-Host 'Response:' ($$response | Out-String) } catch { Write-Host 'ReportPortal upload failed:'; Write-Host $$_.Exception.Message; if ($$_.Exception.ErrorDetails) { Write-Host ($$_.Exception.ErrorDetails | Out-String) }; if ($$_.Exception.Response) { $$reader = New-Object System.IO.StreamReader($$_.Exception.Response.GetResponseStream()); $$responseBody = $$reader.ReadToEnd(); Write-Host 'Response Status Code:' $$_.Exception.Response.StatusCode.value__; Write-Host 'Response Body:' $$responseBody } else { Write-Host 'Response is NULL' }; exit 1 }"
+                                    if !ERRORLEVEL! NEQ 0 (
+                                        echo PowerShell upload failed (exit code: !ERRORLEVEL!)
+                                        exit /b 1
+                                    )
+                                    echo PowerShell upload attempt completed
 
-echo Changing Launch !LAUNCH_ID! status to STOPPED...
-node scripts/get-rp-id.js update !LAUNCH_ID! STOPPED
-echo DEBUG: Launch !LAUNCH_ID! status changed to STOPPED
+                                    echo Changing Launch !LAUNCH_ID! status to STOPPED...
+                                    node scripts/get-rp-id.js update !LAUNCH_ID! STOPPED
+                                    echo DEBUG: Launch !LAUNCH_ID! status changed to STOPPED
 
-echo Deleting temporary files...
-del allure-report.zip
-del rp-json-part.txt
-echo Temporary files deleted
-endlocal'''
+                                    echo Deleting temporary files...
+                                    del allure-report.zip
+                                    del rp-json-part.txt
+                                    echo Temporary files deleted
+                                    endlocal'''
                                     
                                     // bat 스크립트를 임시 파일로 작성
                                     writeFile file: 'rp-upload.bat', text: batScriptContent
