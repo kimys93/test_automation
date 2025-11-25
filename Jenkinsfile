@@ -45,7 +45,7 @@ pipeline {
                 script {
                     try {
                         // ReportPortal credential 사용
-                        withCredentials([string(credentialsId: 'reportportal-token', variable: 'RP_TOKEN')]) {
+                        withCredentials([string(credentialsId: 'slack-reportportal-token', variable: 'RP_TOKEN')]) {
                             sh """
                                 export RP_ENABLED=true
                                 export RP_ENDPOINT=http://localhost:8082/api/v1
