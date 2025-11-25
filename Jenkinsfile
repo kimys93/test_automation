@@ -25,7 +25,7 @@ pipeline {
         stage('Checkout') {
             steps {
                 // GitLab 저장소에서 체크아웃 (Jenkins Credentials에 'gitlab-credentials' ID로 저장 필요)
-                git url: 'http://10.10.1.39/platformqa/macaron/test_automation.git', 
+                git url: 'http://10.10.1.19/platformqa/macaron/test_automation.git', 
                      branch: 'main',
                      credentialsId: 'jenkins_dev'
             }
