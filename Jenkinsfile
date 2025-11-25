@@ -192,11 +192,10 @@ pipeline {
                                             echo "DEBUG: JSON 요청 파트 내용 확인..."
                                             cat rp-json-part.txt
                                             
-                                            # ReportPortal 로그 API에 링크만 전송 (파일 업로드 제거)
+                                            # ReportPortal 로그 API에 링크만 전송 (multipart 형식 유지, 파일 없이 JSON만)
                                             HTTP_CODE=\$(curl -X POST "\$RP_ENDPOINT/\$RP_PROJECT/log" \\
                                                 -H "Authorization: Bearer \$RP_TOKEN" \\
-                                                -H "Content-Type: application/json" \\
-                                                -d @rp-json-part.txt \\
+                                                -F "json_request_part=@rp-json-part.txt;type=application/json" \\
                                                 -w "%{http_code}" -o /tmp/rp-upload-response.txt -s)
                                             
                                             if [ "\$HTTP_CODE" -lt 200 ] || [ "\$HTTP_CODE" -ge 300 ]; then
