@@ -112,30 +112,32 @@ pipeline {
                                     echo "DEBUG: Captured RP Info JSON: [${rpInfoJson}]"
                                     echo "DEBUG: JSON length: ${rpInfoJson.length()}"
                                     
-                                    // JSON 문자열 정리 (불필요한 공백 및 특수문자 제거)
-                                    rpInfoJson = rpInfoJson.replaceAll(/[\r\n]/, '').trim()
-                                    
-                                    // JSON 파싱을 위해 Groovy의 JsonSlurper 사용
+                                    // JSON 문자열 정리 및 파싱 시도
                                     def rpInfo
+                                    def launchId
+                                    def launchUuid
                                     try {
+                                        // 불필요한 공백, 제어 문자 등을 더 광범위하게 제거
+                                        rpInfoJson = rpInfoJson.replaceAll(/\s+/, ' ').trim() // 모든 공백을 한 칸 공백으로
                                         rpInfo = new groovy.json.JsonSlurper().parseText(rpInfoJson)
                                         echo "DEBUG: Parsed Launch ID: ${rpInfo.id}, UUID: ${rpInfo.uuid}"
+                                        launchId = rpInfo.id.toString()
+                                        launchUuid = rpInfo.uuid.toString()
                                     } catch (Exception e) {
+                                        // GroovyMap으로 포착되었을 가능성이 있으므로 LazyMap 오류를 여기서 처리
                                         echo "ERROR: JSON 파싱 실패: ${e.getMessage()}"
                                         echo "ERROR: JSON 내용: ${rpInfoJson}"
-                                        throw e
+                                        throw new Exception("ReportPortal 정보 파싱 실패 - 콘솔 출력을 확인하세요.", e)
                                     }
                                     
-                                    def launchId = rpInfo.id.toString()
-                                    def launchUuid = rpInfo.uuid.toString()
-                                    
-                                    // 2-1. Launch 상태를 ACTIVE로 변경 (Launch ID 사용)
+                                    // 2-1. Launch 상태를 ACTIVE로 변경 (ID/UUID를 찾은 후 바로 실행)
                                     sh """
                                         echo "⚡️ Launch ${launchId} 상태를 ACTIVE로 변경..."
                                         export RP_ENDPOINT=http://localhost:8082/api/v1
                                         export RP_TOKEN=${RP_TOKEN}
                                         export RP_PROJECT=test_automation
                                         node scripts/get-rp-id.js update ${launchId} ACTIVE
+                                        echo "DEBUG: Launch ${launchId} 상태를 ACTIVE로 변경 완료"
                                     """
                                     
                                     // 2-2. Item ID 조회 (Launch ID 사용)
@@ -153,37 +155,55 @@ pipeline {
                                     // JSON을 임시 파일로 저장 (특수문자 이스케이프 문제 방지)
                                     writeFile file: 'rp-json-part.txt', text: jsonContent
                                     
-                                    // 4. curl을 사용하여 ReportPortal에 첨부
+                                    // 4. curl을 사용하여 ReportPortal에 첨부 및 5. Launch 상태 STOPPED로 변경 통합
                                     sh """
                                         echo "📤 curl을 사용하여 ReportPortal에 파일 업로드 시작..."
+                                        
+                                        # curl 실행
                                         curl -X POST "http://localhost:8082/api/v1/test_automation/log" \\
                                             -H "Authorization: Bearer ${RP_TOKEN}" \\
                                             -F "json_request_part=@rp-json-part.txt;type=application/json" \\
                                             -F "file=@allure-report.zip;filename=allure-report.zip;type=application/zip" \\
                                             -w "\\nHTTP Status: %{http_code}\\n" \\
                                             -v 2>&1 | grep -E "(HTTP|error|Error|ERROR|success|Success)" || true
-                                        echo "✅ curl 업로드 완료"
-                                    """
-                                    
-                                    // 5. Launch 상태를 STOPPED로 다시 변경
-                                    sh """
+                                        echo "✅ curl 업로드 시도 완료 (로그 확인 필요)"
+                                        
+                                        # 5. Launch 상태를 STOPPED로 다시 변경
                                         echo "😴 Launch ${launchId} 상태를 STOPPED로 변경..."
                                         export RP_ENDPOINT=http://localhost:8082/api/v1
                                         export RP_TOKEN=${RP_TOKEN}
                                         export RP_PROJECT=test_automation
                                         node scripts/get-rp-id.js update ${launchId} STOPPED
-                                    """
-                                    
-                                    // 6. 임시 파일 삭제
-                                    sh """
+                                        echo "DEBUG: Launch ${launchId} 상태를 STOPPED로 변경 완료"
+                                        
+                                        # 6. 임시 파일 삭제
                                         rm -f allure-report.zip
                                         rm -f rp-json-part.txt
+                                        echo "✅ 임시 파일 삭제 완료"
                                     """
                                     
                                     echo "✅ 완료! Allure 리포트가 Launch ${launchId}에 첨부되었습니다."
                                 }
                             } catch (Exception e) {
+                                // 여기서 실패 시: Agent 연결 끊김 또는 JSON 파싱 문제일 가능성이 높음
                                 echo "ReportPortal에 Allure 리포트 첨부 실패: ${e.getMessage()}"
+                                // 실패했더라도 Launch 상태를 STOPPED로 변경하는 것을 시도합니다.
+                                try {
+                                    if (launchId) {
+                                        withCredentials([string(credentialsId: 'reportportal-token', variable: 'RP_TOKEN')]) {
+                                            sh """
+                                                echo "⚠️ 오류 발생 후 Launch ${launchId} 상태를 STOPPED로 강제 변경 시도..."
+                                                export RP_ENDPOINT=http://localhost:8082/api/v1
+                                                export RP_TOKEN=${RP_TOKEN}
+                                                export RP_PROJECT=test_automation
+                                                node scripts/get-rp-id.js update ${launchId} STOPPED
+                                                echo "✅ 강제 STOPPED 처리 완료"
+                                            """
+                                        }
+                                    }
+                                } catch (Exception innerE) {
+                                    echo "ReportPortal Launch 상태 강제 STOPPED 실패: ${innerE.getMessage()}"
+                                }
                             }
                             
                             // Allure 리포트 아카이브
