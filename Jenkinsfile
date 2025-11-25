@@ -198,8 +198,12 @@ pipeline {
                                             cat rp-json-part.txt
                                             
                                             # 💡 수정: HTTP 상태 코드를 명시적으로 확인하여 2xx가 아니면 실패 처리
-                                            # zip 파일은 application/zip으로 명시
-                                            HTTP_CODE=\$(curl -X POST "\$RP_ENDPOINT/\$RP_PROJECT/log" -H "Authorization: Bearer \$RP_TOKEN" -F "json_request_part=@rp-json-part.txt;type=application/json" -F "file=@allure-report.zip;filename=allure-report.zip;type=application/zip" -w "%{http_code}" -o /tmp/rp-upload-response.txt -s)
+                                            # ReportPortal API 형식: type 지정 없이 시도 (curl이 자동으로 감지)
+                                            HTTP_CODE=\$(curl -X POST "\$RP_ENDPOINT/\$RP_PROJECT/log" \\
+                                                -H "Authorization: Bearer \$RP_TOKEN" \\
+                                                -F "json_request_part=@rp-json-part.txt;type=application/json" \\
+                                                -F "file=@allure-report.zip;filename=allure-report.zip" \\
+                                                -w "%{http_code}" -o /tmp/rp-upload-response.txt -s)
                                             
                                             if [ "\$HTTP_CODE" -lt 200 ] || [ "\$HTTP_CODE" -ge 300 ]; then
                                                 echo "❌ ReportPortal 업로드 실패: HTTP \$HTTP_CODE"
