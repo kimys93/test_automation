@@ -166,11 +166,16 @@ pipeline {
                                             export LAUNCH_ID=${launchId}
                                             export LAUNCH_UUID=${launchUuid}
                                             
-                                            echo "📦 Allure 리포트 TAR 파일 생성..."
+                                            echo "📦 Allure 리포트 ZIP 파일 생성..."
                                             # 2초 대기 (파일 잠금 문제 해결)
                                             sleep 2
-                                            # tar를 사용하여 압축 (서브셸 사용하여 원래 디렉토리로 자동 복귀)
-                                            tar -czf allure-report.tar.gz -C allure-report .
+                                            # zip 명령어가 없으면 설치
+                                            if ! command -v zip >/dev/null 2>&1; then
+                                                echo "📦 zip 설치 중..."
+                                                apt-get update -qq && apt-get install -y -qq zip >/dev/null 2>&1 || (echo "⚠️ zip 설치 실패. 수동 설치 필요: apt-get install -y zip" && exit 1)
+                                            fi
+                                            # zip을 사용하여 압축 (서브셸 사용하여 원래 디렉토리로 자동 복귀)
+                                            (cd allure-report && zip -r ../allure-report.zip .)
                                             
                                             echo "⚡️ Launch \$LAUNCH_ID 상태를 ACTIVE로 변경..."
                                             node scripts/get-rp-id.js update \$LAUNCH_ID ACTIVE
@@ -184,17 +189,17 @@ pipeline {
                                             NOW=\$(date -u +"%Y-%m-%dT%H:%M:%S.%3NZ")
                                             
                                             # JSON 파일 생성
-                                            echo "[{\\"itemUuid\\":\\"\$ITEM_ID\\",\\"launchUuid\\":\\"\$LAUNCH_UUID\\",\\"level\\":\\"INFO\\",\\"message\\":\\"Allure Report: allure-report.tar.gz\\",\\"time\\":\\"\$NOW\\"}]" > rp-json-part.txt
+                                            echo "[{\\"itemUuid\\":\\"\$ITEM_ID\\",\\"launchUuid\\":\\"\$LAUNCH_UUID\\",\\"level\\":\\"INFO\\",\\"message\\":\\"Allure Report: allure-report.zip\\",\\"time\\":\\"\$NOW\\"}]" > rp-json-part.txt
                                             
                                             echo "📤 curl을 사용하여 ReportPortal에 파일 업로드 시작..."
                                             echo "DEBUG: 파일 크기 확인..."
-                                            ls -lh allure-report.tar.gz
+                                            ls -lh allure-report.zip
                                             echo "DEBUG: JSON 요청 파트 내용 확인..."
                                             cat rp-json-part.txt
                                             
                                             # 💡 수정: HTTP 상태 코드를 명시적으로 확인하여 2xx가 아니면 실패 처리
-                                            # Content-Type을 application/octet-stream으로 변경 (ReportPortal 호환성)
-                                            HTTP_CODE=\$(curl -X POST "\$RP_ENDPOINT/\$RP_PROJECT/log" -H "Authorization: Bearer \$RP_TOKEN" -F "json_request_part=@rp-json-part.txt;type=application/json" -F "file=@allure-report.tar.gz;filename=allure-report.tar.gz;type=application/octet-stream" -w "%{http_code}" -o /tmp/rp-upload-response.txt -s)
+                                            # zip 파일은 application/zip으로 명시
+                                            HTTP_CODE=\$(curl -X POST "\$RP_ENDPOINT/\$RP_PROJECT/log" -H "Authorization: Bearer \$RP_TOKEN" -F "json_request_part=@rp-json-part.txt;type=application/json" -F "file=@allure-report.zip;filename=allure-report.zip;type=application/zip" -w "%{http_code}" -o /tmp/rp-upload-response.txt -s)
                                             
                                             if [ "\$HTTP_CODE" -lt 200 ] || [ "\$HTTP_CODE" -ge 300 ]; then
                                                 echo "❌ ReportPortal 업로드 실패: HTTP \$HTTP_CODE"
@@ -213,7 +218,7 @@ pipeline {
                                             echo "DEBUG: Launch \$LAUNCH_ID 상태를 STOPPED로 변경 완료"
                                             
                                             echo "✅ 임시 파일 삭제..."
-                                            rm -f allure-report.tar.gz
+                                            rm -f allure-report.zip
                                             rm -f rp-json-part.txt
                                             echo "✅ 임시 파일 삭제 완료"
                                         """
