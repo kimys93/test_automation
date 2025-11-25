@@ -136,22 +136,12 @@ async function attachFileToLaunch(launchId, filePath, fileName) {
     });
     
     // 필수 필드: json_request_part (JSON 문자열)
-    // form-data 라이브러리: Content-Type을 명시적으로 설정
-    // 참고: form-data는 options 객체에서 contentType 대신 다른 방식 사용 가능
-    const jsonBuffer = Buffer.from(jsonRequestPart, 'utf8');
-    formData.append('json_request_part', jsonBuffer, {
-      filename: 'request.json',
-      contentType: 'application/json',
-      knownLength: jsonBuffer.length
-    });
+    // form-data 라이브러리: 문자열을 직접 전달 (Buffer 변환 없이)
+    // ReportPortal API는 json_request_part를 문자열로 받음
+    formData.append('json_request_part', jsonRequestPart);
     
     // 필수 필드: file (실제 파일)
-    const fileStats = fs.statSync(filePath);
-    formData.append('file', fs.createReadStream(filePath), {
-      filename: fileName,
-      contentType: 'application/zip',
-      knownLength: fileStats.size
-    });
+    formData.append('file', fs.createReadStream(filePath), fileName);
     
     // 디버깅: 전송할 데이터 확인
     console.log(`   JSON Request Part: ${jsonRequestPart.substring(0, 100)}...`);
