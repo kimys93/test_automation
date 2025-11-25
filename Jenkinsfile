@@ -91,15 +91,48 @@ pipeline {
                         
                         // Allure 리포트가 생성되었는지 확인
                         if (fileExists('allure-report')) {
-                            // Allure 리포트를 ReportPortal에 첨부
+                            // Allure 리포트를 ReportPortal에 첨부 (curl 사용)
                             try {
                                 withCredentials([string(credentialsId: 'reportportal-token', variable: 'RP_TOKEN')]) {
+                                    // 1. ZIP 파일 생성
                                     sh """
+                                        echo "📦 Allure 리포트 ZIP 파일 생성..."
+                                        cd allure-report && zip -r ../allure-report.zip . && cd ..
+                                    """
+                                    
+                                    // 2. Launch ID와 Item ID 조회
+                                    def launchId = sh(returnStdout: true, script: """
                                         export RP_ENDPOINT=http://localhost:8082/api/v1
                                         export RP_TOKEN=${RP_TOKEN}
                                         export RP_PROJECT=test_automation
-                                        node scripts/attach-allure-to-reportportal.js sanity allure-report
+                                        node scripts/get-rp-id.js launch sanity
+                                    """).trim()
+                                    
+                                    def itemId = sh(returnStdout: true, script: """
+                                        export RP_ENDPOINT=http://localhost:8082/api/v1
+                                        export RP_TOKEN=${RP_TOKEN}
+                                        export RP_PROJECT=test_automation
+                                        node scripts/get-rp-id.js item ${launchId}
+                                    """).trim()
+                                    
+                                    // 3. JSON 요청 파트 구성
+                                    def now = new Date().format("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", TimeZone.getTimeZone('UTC'))
+                                    def jsonPart = """{"itemUuid":"${itemId}","launchUuid":"${launchId}","level":"INFO","message":"Allure Report: allure-report.zip","time":"${now}"}"""
+                                    
+                                    // 4. curl을 사용하여 ReportPortal에 첨부
+                                    sh """
+                                        echo "📤 curl을 사용하여 ReportPortal에 파일 업로드 시작..."
+                                        curl -X POST "http://localhost:8082/api/v1/test_automation/log" \\
+                                            -H "Authorization: Bearer ${RP_TOKEN}" \\
+                                            -F "json_request_part=${jsonPart}" \\
+                                            -F "file=@allure-report.zip;type=application/zip"
+                                        echo "✅ curl 업로드 완료"
                                     """
+                                    
+                                    // 5. 임시 ZIP 파일 삭제
+                                    sh "rm -f allure-report.zip"
+                                    
+                                    echo "✅ 완료! Allure 리포트가 Launch ${launchId}에 첨부되었습니다."
                                 }
                             } catch (Exception e) {
                                 echo "ReportPortal에 Allure 리포트 첨부 실패: ${e.getMessage()}"
