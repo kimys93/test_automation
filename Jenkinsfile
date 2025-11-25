@@ -27,7 +27,7 @@ pipeline {
                 // GitLab 저장소에서 체크아웃 (Jenkins Credentials에 'gitlab-credentials' ID로 저장 필요)
                 git url: 'http://10.10.1.39/platformqa/macaron/test_automation.git', 
                      branch: 'main',
-                     credentialsId: 'jenkins_dev'
+                     credentialsId: '7447dc1e-18c0-46bd-af10-05dfed134b70'
             }
         }
         
