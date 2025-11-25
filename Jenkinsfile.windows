@@ -150,14 +150,14 @@ pipeline {
                                     // Groovy 변수를 문자열로 변환하여 bat 블록에 전달
                                     def launchIdStr = launchId.toString()
                                     def launchUuidStr = launchUuid.toString()
-                                    bat """
-                                        @echo off
+                                    // bat 스크립트를 별도로 구성하여 변수 보간 문제 해결
+                                    def batScript = """@echo off
                                         setlocal enabledelayedexpansion
                                         set RP_ENDPOINT=http://localhost:8082/api/v1
                                         set RP_TOKEN=%RP_TOKEN%
                                         set RP_PROJECT=test_automation
-                                        set LAUNCH_ID=""" + launchIdStr + """
-                                        set LAUNCH_UUID=""" + launchUuidStr + """
+                                        set LAUNCH_ID=${launchIdStr}
+                                        set LAUNCH_UUID=${launchUuidStr}
                                         
                                         echo Creating Allure report ZIP file...
                                         REM Wait 2 seconds (to resolve file lock issue)
@@ -195,8 +195,8 @@ pipeline {
                                         del allure-report.zip
                                         del rp-json-part.txt
                                         echo Temporary files deleted
-                                        endlocal
-                                    """
+                                        endlocal"""
+                                    bat(batScript)
                                     
                                     echo "Completed! Allure report has been attached to Launch ${launchId}."
                                 }
