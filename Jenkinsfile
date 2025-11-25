@@ -55,7 +55,7 @@ pipeline {
                                 export RP_DEBUG=false
                                 export TEST_TYPE=sanity
                                 export BUILD_NUMBER=${BUILD_NUMBER}
-                                export BASE_URL=http://localhost:3000
+                                export BASE_URL=http://10.10.0.159:8000
                                 npm run test:sanity
                             """
                         }
@@ -157,16 +157,19 @@ pipeline {
                                         throw new Exception("ReportPortal 정보 파싱 실패 - 콘솔 출력을 확인하세요.", e)
                                     }
                                     
-                                    // 💡 수정: 환경 변수를 사용하여 유효성 검사
-                                    if (env.LAUNCH_ID && env.LAUNCH_UUID) {
+                                    // 💡 수정: 환경 변수를 사용하여 유효성 검사 (Safe Navigation 사용)
+                                    def launchIdForSh = env.LAUNCH_ID?.trim()
+                                    def launchUuidForSh = env.LAUNCH_UUID?.trim()
+                                    
+                                    if (launchIdForSh && launchUuidForSh) {
                                         // 2. 나머지 모든 ReportPortal 연동/업로드/종료 작업을 하나의 sh 블록으로 통합 실행
                                         sh """
                                             export RP_ENDPOINT=http://10.10.0.30:8082/api/v1
                                             export RP_TOKEN=${RP_TOKEN}
                                             export RP_PROJECT=test_automation
-                                            # 💡 수정: Groovy 환경 변수를 쉘 변수로 전달
-                                            export LAUNCH_ID=${env.LAUNCH_ID}
-                                            export LAUNCH_UUID=${env.LAUNCH_UUID}
+                                            # 💡 수정: Groovy 로컬 변수를 쉘 변수로 전달
+                                            export LAUNCH_ID=${launchIdForSh}
+                                            export LAUNCH_UUID=${launchUuidForSh}
                                             
                                             echo "⚡️ Launch \$LAUNCH_ID 상태를 ACTIVE로 변경..."
                                             node scripts/get-rp-id.js update \$LAUNCH_ID ACTIVE
@@ -235,9 +238,9 @@ EOF
                                             echo "✅ 임시 파일 삭제 완료"
                                         """
                                         
-                                        echo "✅ 완료! Allure 리포트가 Launch ${env.LAUNCH_ID}에 첨부되었습니다."
+                                        echo "✅ 완료! Allure 리포트가 Launch ${launchIdForSh}에 첨부되었습니다."
                                     } else {
-                                        echo "⚠️ Launch ID 또는 UUID가 유효하지 않아 업로드를 건너뜁니다. (launchId: ${env.LAUNCH_ID}, launchUuid: ${env.LAUNCH_UUID})"
+                                        echo "⚠️ Launch ID 또는 UUID가 유효하지 않아 업로드를 건너뜁니다. (launchId: ${launchIdForSh}, launchUuid: ${launchUuidForSh})"
                                     }
                                 }
                             } catch (Exception e) {
