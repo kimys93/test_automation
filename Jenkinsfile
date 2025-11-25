@@ -166,17 +166,6 @@ pipeline {
                                             export LAUNCH_ID=${launchId}
                                             export LAUNCH_UUID=${launchUuid}
                                             
-                                            echo "📦 Allure 리포트 ZIP 파일 생성..."
-                                            # 2초 대기 (파일 잠금 문제 해결)
-                                            sleep 2
-                                            # zip 명령어가 없으면 설치
-                                            if ! command -v zip >/dev/null 2>&1; then
-                                                echo "📦 zip 설치 중..."
-                                                apt-get update -qq && apt-get install -y -qq zip >/dev/null 2>&1 || (echo "⚠️ zip 설치 실패. 수동 설치 필요: apt-get install -y zip" && exit 1)
-                                            fi
-                                            # zip을 사용하여 압축 (서브셸 사용하여 원래 디렉토리로 자동 복귀)
-                                            (cd allure-report && zip -r ../allure-report.zip .)
-                                            
                                             echo "⚡️ Launch \$LAUNCH_ID 상태를 ACTIVE로 변경..."
                                             node scripts/get-rp-id.js update \$LAUNCH_ID ACTIVE
                                             echo "DEBUG: Launch \$LAUNCH_ID 상태를 ACTIVE로 변경 완료"
@@ -188,37 +177,35 @@ pipeline {
                                             echo "📝 JSON 요청 파트 생성..."
                                             NOW=\$(date -u +"%Y-%m-%dT%H:%M:%S.%3NZ")
                                             
-                                            # Jenkins 다운로드 URL 생성
+                                            # Jenkins Allure 리포트 URL 생성 (이중 슬래시 방지)
                                             JENKINS_URL=\${JENKINS_URL:-http://10.10.0.159:8080}
+                                            JENKINS_URL=\${JENKINS_URL%/}  # 끝의 슬래시 제거
                                             JOB_NAME=\${JOB_NAME:-test_automation}
                                             BUILD_NUMBER=\${BUILD_NUMBER:-1}
                                             ALLURE_REPORT_URL="\${JENKINS_URL}/job/\${JOB_NAME}/\${BUILD_NUMBER}/Allure_20Report/"
-                                            DOWNLOAD_URL="\${JENKINS_URL}/job/\${JOB_NAME}/\${BUILD_NUMBER}/artifact/allure-report.zip"
                                             
-                                            # JSON 파일 생성 (Jenkins 링크 포함)
-                                            echo "[{\\"itemUuid\\":\\"\$ITEM_ID\\",\\"launchUuid\\":\\"\$LAUNCH_UUID\\",\\"level\\":\\"INFO\\",\\"message\\":\\"Allure Report: View HTML - \${ALLURE_REPORT_URL} | Download ZIP - \${DOWNLOAD_URL}\\",\\"time\\":\\"\$NOW\\"}]" > rp-json-part.txt
+                                            # JSON 파일 생성 (Jenkins 링크 포함 - ReportPortal이 URL을 자동으로 링크로 변환)
+                                            # ReportPortal은 일반적으로 http:// 또는 https://로 시작하는 URL을 자동으로 클릭 가능한 링크로 변환합니다
+                                            echo "[{\\"itemUuid\\":\\"\$ITEM_ID\\",\\"launchUuid\\":\\"\$LAUNCH_UUID\\",\\"level\\":\\"INFO\\",\\"message\\":\\"Allure Report: \${ALLURE_REPORT_URL}\\",\\"time\\":\\"\$NOW\\"}]" > rp-json-part.txt
                                             
-                                            echo "📤 curl을 사용하여 ReportPortal에 파일 업로드 시작..."
-                                            echo "DEBUG: 파일 크기 확인..."
-                                            ls -lh allure-report.zip
+                                            echo "📤 ReportPortal에 Allure 리포트 링크 전송 중..."
                                             echo "DEBUG: JSON 요청 파트 내용 확인..."
                                             cat rp-json-part.txt
                                             
-                                            # 💡 수정: HTTP 상태 코드를 명시적으로 확인하여 2xx가 아니면 실패 처리
-                                            # ReportPortal API 형식: type 지정 없이 시도 (curl이 자동으로 감지)
+                                            # ReportPortal 로그 API에 링크만 전송 (파일 업로드 제거)
                                             HTTP_CODE=\$(curl -X POST "\$RP_ENDPOINT/\$RP_PROJECT/log" \\
                                                 -H "Authorization: Bearer \$RP_TOKEN" \\
-                                                -F "json_request_part=@rp-json-part.txt;type=application/json" \\
-                                                -F "file=@allure-report.zip;filename=allure-report.zip" \\
+                                                -H "Content-Type: application/json" \\
+                                                -d @rp-json-part.txt \\
                                                 -w "%{http_code}" -o /tmp/rp-upload-response.txt -s)
                                             
                                             if [ "\$HTTP_CODE" -lt 200 ] || [ "\$HTTP_CODE" -ge 300 ]; then
-                                                echo "❌ ReportPortal 업로드 실패: HTTP \$HTTP_CODE"
+                                                echo "❌ ReportPortal 링크 전송 실패: HTTP \$HTTP_CODE"
                                                 cat /tmp/rp-upload-response.txt
                                                 rm -f /tmp/rp-upload-response.txt
                                                 exit 1
                                             else
-                                                echo "✅ ReportPortal 업로드 성공: HTTP \$HTTP_CODE"
+                                                echo "✅ ReportPortal 링크 전송 성공: HTTP \$HTTP_CODE"
                                                 echo "DEBUG: 응답 내용:"
                                                 cat /tmp/rp-upload-response.txt
                                                 rm -f /tmp/rp-upload-response.txt
@@ -229,7 +216,6 @@ pipeline {
                                             echo "DEBUG: Launch \$LAUNCH_ID 상태를 STOPPED로 변경 완료"
                                             
                                             echo "✅ 임시 파일 삭제..."
-                                            rm -f allure-report.zip
                                             rm -f rp-json-part.txt
                                             echo "✅ 임시 파일 삭제 완료"
                                         """
