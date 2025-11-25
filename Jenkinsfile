@@ -91,6 +91,10 @@ pipeline {
                         
                         // Allure 리포트가 생성되었는지 확인
                         if (fileExists('allure-report')) {
+                            // 💡 수정: 변수를 try 블록 밖에서 null로 초기화합니다.
+                            def launchId = null
+                            def launchUuid = null
+                            
                             // Allure 리포트를 ReportPortal에 첨부 (curl 사용)
                             try {
                                 withCredentials([string(credentialsId: 'reportportal-token', variable: 'RP_TOKEN')]) {
@@ -114,13 +118,13 @@ pipeline {
                                     
                                     // JSON 문자열 정리 및 파싱 시도
                                     def rpInfo
-                                    def launchId
-                                    def launchUuid
                                     try {
                                         // 불필요한 공백, 제어 문자 등을 더 광범위하게 제거
                                         rpInfoJson = rpInfoJson.replaceAll(/\s+/, ' ').trim() // 모든 공백을 한 칸 공백으로
                                         rpInfo = new groovy.json.JsonSlurper().parseText(rpInfoJson)
                                         echo "DEBUG: Parsed Launch ID: ${rpInfo.id}, UUID: ${rpInfo.uuid}"
+                                        
+                                        // 💡 수정: 여기서 Launch ID와 UUID를 할당합니다.
                                         launchId = rpInfo.id.toString()
                                         launchUuid = rpInfo.uuid.toString()
                                     } catch (Exception e) {
