@@ -55,7 +55,7 @@ pipeline {
                                 export RP_DEBUG=false
                                 export TEST_TYPE=sanity
                                 export BUILD_NUMBER=${BUILD_NUMBER}
-                                export BASE_URL=http://10.10.0.159:8000
+                                export BASE_URL=http://localhost:3000
                                 npm run test:sanity
                             """
                         }
@@ -69,10 +69,6 @@ pipeline {
         stage('Process Test Results') {
             steps {
                 script {
-                    // 💡 [수정] Launch ID/UUID 변수를 환경 변수로 선언 (try-catch 블록 경계를 넘나들어도 접근 가능)
-                    env.LAUNCH_ID = null
-                    env.LAUNCH_UUID = null
-                    
                     if (fileExists('playwright-report') && fileExists('test-results')) {
                         sh 'chmod -R 755 playwright-report'
                         sh 'chmod -R 755 test-results'
@@ -96,8 +92,11 @@ pipeline {
                         
                         // Allure 리포트가 생성되었는지 확인
                         if (fileExists('allure-report')) {
+                            // 💡 수정: 변수를 try 블록 밖에서 String 타입으로 명시적 초기화
+                            String launchId = null
+                            String launchUuid = null
+                            
                             // Allure 리포트를 ReportPortal에 첨부 (curl 사용)
-                            // 💡 [수정] launchId와 launchUuid는 이미 script 블록 상단에서 선언됨
                             try {
                                 withCredentials([string(credentialsId: 'slack-reportportal-token', variable: 'RP_TOKEN')]) {
                                     // 1. Launch ID 및 UUID 조회 (이 부분만 Groovy에서 수행)
@@ -119,10 +118,6 @@ pipeline {
                                     
                                     // JSON 문자열 정리 및 파싱 시도 (강화된 버전)
                                     def rpInfo
-                                    // 💡 수정: 로컬 변수를 try 블록 밖에서 선언
-                                    def launchIdStr = null
-                                    def launchUuidStr = null
-                                    
                                     try {
                                         // 1단계: 모든 제어 문자 및 불필요한 공백 제거
                                         rpInfoJson = rpInfoJson.replaceAll(/[\r\n\t]/, '').replaceAll(/\s+/, ' ').trim()
@@ -146,15 +141,10 @@ pipeline {
                                             throw new Exception("JSON에 필수 필드(id, uuid)가 없습니다.")
                                         }
                                         
-                                        // 💡 수정: 로컬 변수에 직접 할당 (env 접근 문제 방지)
-                                        launchIdStr = rpInfo.id.toString()
-                                        launchUuidStr = rpInfo.uuid.toString()
-                                        
-                                        // 환경 변수에도 할당 (나중에 catch 블록에서 사용하기 위해)
-                                        env.LAUNCH_ID = launchIdStr
-                                        env.LAUNCH_UUID = launchUuidStr
-                                        
-                                        echo "DEBUG: Parsed Launch ID: ${launchIdStr}, UUID: ${launchUuidStr}"
+                                        // 💡 수정: 할당 시 명시적으로 String 타입 변수에 값을 할당
+                                        launchId = rpInfo.id.toString()
+                                        launchUuid = rpInfo.uuid.toString()
+                                        echo "DEBUG: Parsed Launch ID: ${launchId}, UUID: ${launchUuid}"
                                         
                                         // rpInfo 객체는 더 이상 필요 없으므로 명시적으로 null 처리하여 직렬화 문제 방지
                                         rpInfo = null
@@ -166,16 +156,15 @@ pipeline {
                                         throw new Exception("ReportPortal 정보 파싱 실패 - 콘솔 출력을 확인하세요.", e)
                                     }
                                     
-                                    // 💡 수정: 로컬 변수를 사용하여 유효성 검사
-                                    if (launchIdStr && launchUuidStr) {
+                                    // 💡 수정: launchId와 launchUuid가 유효한 경우에만 업로드 스크립트 실행
+                                    if (launchId && launchUuid) {
                                         // 2. 나머지 모든 ReportPortal 연동/업로드/종료 작업을 하나의 sh 블록으로 통합 실행
                                         sh """
                                             export RP_ENDPOINT=http://10.10.0.30:8082/api/v1
                                             export RP_TOKEN=${RP_TOKEN}
                                             export RP_PROJECT=test_automation
-                                            # 💡 수정: Groovy 로컬 변수를 쉘 변수로 전달
-                                            export LAUNCH_ID=${launchIdStr}
-                                            export LAUNCH_UUID=${launchUuidStr}
+                                            export LAUNCH_ID=${launchId}
+                                            export LAUNCH_UUID=${launchUuid}
                                             
                                             echo "⚡️ Launch \$LAUNCH_ID 상태를 ACTIVE로 변경..."
                                             node scripts/get-rp-id.js update \$LAUNCH_ID ACTIVE
@@ -195,43 +184,30 @@ pipeline {
                                             BUILD_NUMBER=\${BUILD_NUMBER:-1}
                                             ALLURE_REPORT_URL="\${JENKINS_URL}/job/\${JOB_NAME}/\${BUILD_NUMBER}/Allure_20Report/"
                                             
-                                            # JSON 파일 생성 (마크다운 링크 형식 시도)
-                                            # heredoc 사용하여 JSON 이스케이프 문제 해결
-                                            # 쉘 변수는 $변수명 형식 사용 (이스케이프 제거)
-                                            cat > rp-json-part.txt <<EOF
-[{"itemUuid":"$ITEM_ID","launchUuid":"$LAUNCH_UUID","level":"INFO","message":"Allure Report: [Open Allure Report]($ALLURE_REPORT_URL)","time":"$NOW"}]
-EOF
+                                            # JSON 파일 생성 (Jenkins 링크 포함 - ReportPortal이 URL을 자동으로 링크로 변환)
+                                            # ReportPortal은 일반적으로 http:// 또는 https://로 시작하는 URL을 자동으로 클릭 가능한 링크로 변환합니다
+                                            echo "[{\\"itemUuid\\":\\"\$ITEM_ID\\",\\"launchUuid\\":\\"\$LAUNCH_UUID\\",\\"level\\":\\"INFO\\",\\"message\\":\\"Allure Report: \${ALLURE_REPORT_URL}\\",\\"time\\":\\"\$NOW\\"}]" > rp-json-part.txt
                                             
                                             echo "📤 ReportPortal에 Allure 리포트 링크 전송 중..."
                                             echo "DEBUG: JSON 요청 파트 내용 확인..."
                                             cat rp-json-part.txt
                                             
-                                            # ReportPortal 로그 API에 링크만 전송 (multipart 형식 유지, 파일 없이 JSON만)
+                                            # ReportPortal 로그 API에 링크만 전송 (파일 업로드 제거)
                                             HTTP_CODE=\$(curl -X POST "\$RP_ENDPOINT/\$RP_PROJECT/log" \\
                                                 -H "Authorization: Bearer \$RP_TOKEN" \\
-                                                -F "json_request_part=@rp-json-part.txt;type=application/json" \\
+                                                -H "Content-Type: application/json" \\
+                                                -d @rp-json-part.txt \\
                                                 -w "%{http_code}" -o /tmp/rp-upload-response.txt -s)
                                             
                                             if [ "\$HTTP_CODE" -lt 200 ] || [ "\$HTTP_CODE" -ge 300 ]; then
                                                 echo "❌ ReportPortal 링크 전송 실패: HTTP \$HTTP_CODE"
-                                                echo "DEBUG: ReportPortal 서버 응답 내용:"
-                                                if [ -f /tmp/rp-upload-response.txt ]; then
-                                                    cat /tmp/rp-upload-response.txt
-                                                else
-                                                    echo "응답 파일이 없습니다."
-                                                fi
-                                                echo "DEBUG: JSON 요청 파트 재확인:"
-                                                cat rp-json-part.txt
+                                                cat /tmp/rp-upload-response.txt
                                                 rm -f /tmp/rp-upload-response.txt
                                                 exit 1
                                             else
                                                 echo "✅ ReportPortal 링크 전송 성공: HTTP \$HTTP_CODE"
                                                 echo "DEBUG: 응답 내용:"
-                                                if [ -f /tmp/rp-upload-response.txt ]; then
-                                                    cat /tmp/rp-upload-response.txt
-                                                else
-                                                    echo "응답 파일이 없습니다."
-                                                fi
+                                                cat /tmp/rp-upload-response.txt
                                                 rm -f /tmp/rp-upload-response.txt
                                             fi
                                             
@@ -244,9 +220,9 @@ EOF
                                             echo "✅ 임시 파일 삭제 완료"
                                         """
                                         
-                                        echo "✅ 완료! Allure 리포트가 Launch ${launchIdStr}에 첨부되었습니다."
+                                        echo "✅ 완료! Allure 리포트가 Launch ${launchId}에 첨부되었습니다."
                                     } else {
-                                        echo "⚠️ Launch ID 또는 UUID가 유효하지 않아 업로드를 건너뜁니다. (launchId: ${launchIdStr}, launchUuid: ${launchUuidStr})"
+                                        echo "⚠️ Launch ID 또는 UUID가 유효하지 않아 업로드를 건너뜁니다. (launchId: ${launchId}, launchUuid: ${launchUuid})"
                                     }
                                 }
                             } catch (Exception e) {
@@ -260,20 +236,11 @@ EOF
                                 } catch (Exception innerE) {
                                     errorMessage = "Could not retrieve exception message: ${innerE.getClass().getName()}"
                                 }
-                                
-                                // 💡 수정: Groovy의 String Interpolation으로 인한 2차 오류를 방지하기 위해 
-                                // echo 문에서 String Interpolation이 아닌, 단순 문자열을 먼저 선언하고 출력
-                                String failureMessage = "ReportPortal에 Allure 리포트 첨부 실패: ${errorMessage}"
-                                String classMessage = "Error Class: ${errorClass}"
-                                
-                                echo failureMessage
-                                echo classMessage
+                                echo "ReportPortal에 Allure 리포트 첨부 실패: ${errorMessage}"
+                                echo "Error Class: ${errorClass}"
                                 // 실패했더라도 Launch 상태를 STOPPED로 변경하는 것을 시도합니다.
                                 try {
-                                    // 💡 수정: Groovy Safe Navigation ?.를 사용하여 null 체크 (더 안전)
-                                    def launchId = env.LAUNCH_ID?.trim() // Trim으로 안전하게 공백 제거
-                                    
-                                    if (launchId) { // null이거나 빈 문자열이 아닌 경우에만 실행
+                                    if (launchId) {
                                         withCredentials([string(credentialsId: 'slack-reportportal-token', variable: 'RP_TOKEN')]) {
                                             sh """
                                                 echo "⚠️ 오류 발생 후 Launch ${launchId} 상태를 STOPPED로 강제 변경 시도..."
@@ -284,13 +251,9 @@ EOF
                                                 echo "✅ 강제 STOPPED 처리 완료"
                                             """
                                         }
-                                    } else {
-                                        echo "⚠️ Launch ID가 유효하지 않아 STOPPED 처리를 건너뜁니다."
                                     }
                                 } catch (Exception innerE) {
-                                    // 안전한 에러 메시지 처리
-                                    String stopErrorMessage = innerE.getMessage() ?: "Unknown error"
-                                    echo "ReportPortal Launch 상태 강제 STOPPED 실패: ${stopErrorMessage}"
+                                    echo "ReportPortal Launch 상태 강제 STOPPED 실패: ${innerE.getMessage()}"
                                 }
                             }
                             
