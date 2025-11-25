@@ -193,7 +193,17 @@ pipeline {
                                 }
                             } catch (Exception e) {
                                 // 여기서 실패 시: Agent 연결 끊김 또는 JSON 파싱 문제일 가능성이 높음
-                                echo "ReportPortal에 Allure 리포트 첨부 실패: ${e.getMessage()}"
+                                // 안전한 에러 메시지 처리 (2차 오류 방지)
+                                def errorMessage = "알 수 없는 오류"
+                                def errorClass = "알 수 없음"
+                                try {
+                                    errorMessage = e.getMessage() ?: "알 수 없는 Groovy 오류. 상세 내용은 콘솔을 확인하세요."
+                                    errorClass = e.getClass().getName()
+                                } catch (Exception innerE) {
+                                    errorMessage = "예외 메시지를 가져올 수 없습니다: ${innerE.getClass().getName()}"
+                                }
+                                echo "ReportPortal에 Allure 리포트 첨부 실패: ${errorMessage}"
+                                echo "Error Class: ${errorClass}"
                                 // 실패했더라도 Launch 상태를 STOPPED로 변경하는 것을 시도합니다.
                                 try {
                                     if (launchId) {
@@ -324,8 +334,3 @@ ${testStatus == 'Success' ? '\n:white_check_mark: Success - 모든 테스트 성
         }
     }
 }
-
-
-
-
-
