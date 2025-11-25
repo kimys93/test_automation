@@ -69,6 +69,10 @@ pipeline {
         stage('Process Test Results') {
             steps {
                 script {
+                    // 💡 [수정] Launch ID/UUID 변수를 가장 넓은 범위(스크립트 블록 시작점)에서 정의
+                    String launchId = null
+                    String launchUuid = null
+                    
                     if (fileExists('playwright-report') && fileExists('test-results')) {
                         sh 'chmod -R 755 playwright-report'
                         sh 'chmod -R 755 test-results'
@@ -92,11 +96,8 @@ pipeline {
                         
                         // Allure 리포트가 생성되었는지 확인
                         if (fileExists('allure-report')) {
-                            // 💡 수정: 변수를 try 블록 밖에서 String 타입으로 명시적 초기화
-                            String launchId = null
-                            String launchUuid = null
-                            
                             // Allure 리포트를 ReportPortal에 첨부 (curl 사용)
+                            // 💡 [수정] launchId와 launchUuid는 이미 script 블록 상단에서 선언됨
                             try {
                                 withCredentials([string(credentialsId: 'slack-reportportal-token', variable: 'RP_TOKEN')]) {
                                     // 1. Launch ID 및 UUID 조회 (이 부분만 Groovy에서 수행)
