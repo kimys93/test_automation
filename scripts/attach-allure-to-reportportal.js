@@ -143,8 +143,16 @@ async function attachFileToLaunch(launchId, filePath, fileName) {
     // ReportPortal은 이 파트를 파일이 아닌 메타데이터로 인식해야 함
     formData.append('json_request_part', jsonRequestPart);
     
-    // 필수 필드: file (실제 파일) - 파일 스트림과 파일 이름을 전달하여 파일 파트로 구성
-    formData.append('file', fs.createReadStream(filePath), fileName);
+    // 필수 필드: file (실제 파일) - Content-Type 명시적으로 지정
+    // Gemini 해결책: application/octet-stream 오류 해결을 위해 contentType 명시
+    formData.append(
+      'file', 
+      fs.createReadStream(filePath), 
+      {
+        filename: fileName, // allure-report.zip
+        contentType: 'application/zip' // ⭐ ZIP 파일 타입 명시 (핵심 수정)
+      }
+    );
     
     // 디버깅: 전송할 데이터 확인
     console.log(`   JSON Request Part: ${jsonRequestPart.substring(0, 100)}...`);
