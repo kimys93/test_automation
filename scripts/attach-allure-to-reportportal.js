@@ -136,9 +136,13 @@ async function attachFileToLaunch(launchId, filePath, fileName) {
     });
     
     // 필수 필드: json_request_part (JSON 문자열)
-    // form-data 라이브러리: 문자열을 직접 전달 (Buffer 변환 없이)
-    // ReportPortal API는 json_request_part를 문자열로 받음
-    formData.append('json_request_part', jsonRequestPart);
+    // Gemini 제안: Buffer를 사용하여 Content-Type을 명시적으로 설정
+    // ReportPortal v5.14 API는 json_request_part를 application/json으로 기대
+    const jsonBuffer = Buffer.from(jsonRequestPart, 'utf-8');
+    formData.append('json_request_part', jsonBuffer, {
+      filename: 'json_request_part',
+      contentType: 'application/json'
+    });
     
     // 필수 필드: file (실제 파일)
     formData.append('file', fs.createReadStream(filePath), fileName);
