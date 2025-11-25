@@ -69,9 +69,9 @@ pipeline {
         stage('Process Test Results') {
             steps {
                 script {
-                    // 💡 [수정] Launch ID/UUID 변수를 가장 넓은 범위(스크립트 블록 시작점)에서 정의
-                    String launchId = null
-                    String launchUuid = null
+                    // 💡 [수정] Launch ID/UUID 변수를 환경 변수로 선언 (try-catch 블록 경계를 넘나들어도 접근 가능)
+                    env.LAUNCH_ID = null
+                    env.LAUNCH_UUID = null
                     
                     if (fileExists('playwright-report') && fileExists('test-results')) {
                         sh 'chmod -R 755 playwright-report'
@@ -142,10 +142,10 @@ pipeline {
                                             throw new Exception("JSON에 필수 필드(id, uuid)가 없습니다.")
                                         }
                                         
-                                        // 💡 수정: 할당 시 명시적으로 String 타입 변수에 값을 할당
-                                        launchId = rpInfo.id.toString()
-                                        launchUuid = rpInfo.uuid.toString()
-                                        echo "DEBUG: Parsed Launch ID: ${launchId}, UUID: ${launchUuid}"
+                                        // 💡 수정: 환경 변수에 할당 (String으로 변환하여 env에 저장)
+                                        env.LAUNCH_ID = rpInfo.id.toString()
+                                        env.LAUNCH_UUID = rpInfo.uuid.toString()
+                                        echo "DEBUG: Parsed Launch ID: ${env.LAUNCH_ID}, UUID: ${env.LAUNCH_UUID}"
                                         
                                         // rpInfo 객체는 더 이상 필요 없으므로 명시적으로 null 처리하여 직렬화 문제 방지
                                         rpInfo = null
@@ -157,15 +157,16 @@ pipeline {
                                         throw new Exception("ReportPortal 정보 파싱 실패 - 콘솔 출력을 확인하세요.", e)
                                     }
                                     
-                                    // 💡 수정: launchId와 launchUuid가 유효한 경우에만 업로드 스크립트 실행
-                                    if (launchId && launchUuid) {
+                                    // 💡 수정: 환경 변수를 사용하여 유효성 검사
+                                    if (env.LAUNCH_ID && env.LAUNCH_UUID) {
                                         // 2. 나머지 모든 ReportPortal 연동/업로드/종료 작업을 하나의 sh 블록으로 통합 실행
                                         sh """
                                             export RP_ENDPOINT=http://10.10.0.30:8082/api/v1
                                             export RP_TOKEN=${RP_TOKEN}
                                             export RP_PROJECT=test_automation
-                                            export LAUNCH_ID=${launchId}
-                                            export LAUNCH_UUID=${launchUuid}
+                                            # 💡 수정: Groovy 환경 변수를 쉘 변수로 전달
+                                            export LAUNCH_ID=${env.LAUNCH_ID}
+                                            export LAUNCH_UUID=${env.LAUNCH_UUID}
                                             
                                             echo "⚡️ Launch \$LAUNCH_ID 상태를 ACTIVE로 변경..."
                                             node scripts/get-rp-id.js update \$LAUNCH_ID ACTIVE
@@ -223,9 +224,9 @@ EOF
                                             echo "✅ 임시 파일 삭제 완료"
                                         """
                                         
-                                        echo "✅ 완료! Allure 리포트가 Launch ${launchId}에 첨부되었습니다."
+                                        echo "✅ 완료! Allure 리포트가 Launch ${env.LAUNCH_ID}에 첨부되었습니다."
                                     } else {
-                                        echo "⚠️ Launch ID 또는 UUID가 유효하지 않아 업로드를 건너뜁니다. (launchId: ${launchId}, launchUuid: ${launchUuid})"
+                                        echo "⚠️ Launch ID 또는 UUID가 유효하지 않아 업로드를 건너뜁니다. (launchId: ${env.LAUNCH_ID}, launchUuid: ${env.LAUNCH_UUID})"
                                     }
                                 }
                             } catch (Exception e) {
@@ -243,14 +244,15 @@ EOF
                                 echo "Error Class: ${errorClass}"
                                 // 실패했더라도 Launch 상태를 STOPPED로 변경하는 것을 시도합니다.
                                 try {
-                                    if (launchId) {
+                                    // 💡 수정: 환경 변수를 사용하여 유효성 검사 및 쉘 스크립트에 전달
+                                    if (env.LAUNCH_ID) {
                                         withCredentials([string(credentialsId: 'slack-reportportal-token', variable: 'RP_TOKEN')]) {
                                             sh """
-                                                echo "⚠️ 오류 발생 후 Launch ${launchId} 상태를 STOPPED로 강제 변경 시도..."
+                                                echo "⚠️ 오류 발생 후 Launch ${env.LAUNCH_ID} 상태를 STOPPED로 강제 변경 시도..."
                                                 export RP_ENDPOINT=http://10.10.0.30:8082/api/v1
                                                 export RP_TOKEN=${RP_TOKEN}
                                                 export RP_PROJECT=test_automation
-                                                node scripts/get-rp-id.js update ${launchId} STOPPED
+                                                node scripts/get-rp-id.js update ${env.LAUNCH_ID} STOPPED
                                                 echo "✅ 강제 STOPPED 처리 완료"
                                             """
                                         }
