@@ -13,9 +13,8 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
-import http from 'http';
-import https from 'https';
-import { URL } from 'url';
+import axios from 'axios';
+import FormData from 'form-data';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -126,7 +125,6 @@ async function attachFileToLaunch(launchId, filePath, fileName) {
     const itemId = await findFirstTestItem(launchId);
     
     // Node.js에서 multipart/form-data 생성
-    const FormData = (await import('form-data')).default;
     const formData = new FormData();
     
     // ReportPortal log API에 필요한 JSON 메타데이터
@@ -158,60 +156,32 @@ async function attachFileToLaunch(launchId, filePath, fileName) {
     console.log(`   JSON Request Part: ${jsonRequestPart.substring(0, 100)}...`);
     
     // ReportPortal API: POST /{project}/log (multipart/form-data)
-    // Gemini 해결책: fetch 대신 http/https 모듈 사용하여 form-data를 직접 pipe
-    const urlObject = new URL(`${RP_ENDPOINT}/${RP_PROJECT}/log`);
-    const protocol = urlObject.protocol === 'https:' ? https : http;
+    // Gemini 해결책: axios를 사용하여 multipart/form-data 안정적으로 처리
+    const url = `${RP_ENDPOINT}/${RP_PROJECT}/log`;
     
-    const requestOptions = {
-      method: 'POST',
-      host: urlObject.hostname,
-      port: urlObject.port || (protocol === https ? 443 : 80),
-      path: urlObject.pathname + urlObject.search,
-      headers: {
-        'Authorization': `Bearer ${RP_TOKEN}`,
-        ...formData.getHeaders() // Content-Type 헤더가 포함됨
-      }
-    };
-
     console.log(`📤 파일 업로드 중: ${fileName} (${(fs.statSync(filePath).size / 1024 / 1024).toFixed(2)} MB)`);
     console.log(`   Target Launch ID: ${launchId}`);
     console.log(`   Target Item ID: ${itemId}`);
-    console.log(`   API Endpoint: ${urlObject.href}`);
+    console.log(`   API Endpoint: ${url}`);
     
-    // Promise로 래핑하여 응답 처리
-    return new Promise((resolve, reject) => {
-      const req = protocol.request(requestOptions, (res) => {
-        let responseBody = '';
-        
-        res.on('data', (chunk) => {
-          responseBody += chunk.toString();
-        });
-        
-        res.on('end', () => {
-          if (res.statusCode >= 200 && res.statusCode < 300) {
-            console.log(`✅ 파일 첨부 완료: ${fileName}`);
-            try {
-              const result = responseBody ? JSON.parse(responseBody) : { message: 'Success (no JSON body)' };
-              resolve(result);
-            } catch (e) {
-              resolve({ message: 'Success (invalid JSON response)' });
-            }
-          } else {
-            reject(new Error(`HTTP ${res.statusCode}: ${responseBody}`));
-          }
-        });
-      });
-
-      req.on('error', (err) => {
-        reject(new Error(`요청 오류: ${err.message}`));
-      });
-      
-      // formData 스트림을 요청에 파이프합니다 (핵심!)
-      formData.pipe(req);
+    // axios를 사용하여 POST 요청 실행
+    const response = await axios.post(url, formData, {
+      headers: {
+        'Authorization': `Bearer ${RP_TOKEN}`,
+        ...formData.getHeaders() // Content-Type: multipart/form-data; boundary=... 포함
+      },
+      maxContentLength: Infinity, // 대용량 파일 처리 허용
+      maxBodyLength: Infinity // 대용량 파일 처리 허용
     });
+    
+    console.log(`✅ 파일 첨부 완료: ${fileName}`);
+    return response.data;
   } catch (error) {
-    console.error(`❌ 파일 첨부 실패: ${error.message}`);
-    throw error;
+    // axios 오류 처리
+    const status = error.response ? error.response.status : 'N/A';
+    const errorData = error.response ? JSON.stringify(error.response.data) : error.message;
+    console.error(`❌ 파일 첨부 실패: HTTP ${status}: ${errorData}`);
+    throw new Error(`HTTP ${status}: ${errorData}`);
   }
 }
 
