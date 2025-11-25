@@ -205,13 +205,24 @@ EOF
                                             
                                             if [ "\$HTTP_CODE" -lt 200 ] || [ "\$HTTP_CODE" -ge 300 ]; then
                                                 echo "❌ ReportPortal 링크 전송 실패: HTTP \$HTTP_CODE"
-                                                cat /tmp/rp-upload-response.txt
+                                                echo "DEBUG: ReportPortal 서버 응답 내용:"
+                                                if [ -f /tmp/rp-upload-response.txt ]; then
+                                                    cat /tmp/rp-upload-response.txt
+                                                else
+                                                    echo "응답 파일이 없습니다."
+                                                fi
+                                                echo "DEBUG: JSON 요청 파트 재확인:"
+                                                cat rp-json-part.txt
                                                 rm -f /tmp/rp-upload-response.txt
                                                 exit 1
                                             else
                                                 echo "✅ ReportPortal 링크 전송 성공: HTTP \$HTTP_CODE"
                                                 echo "DEBUG: 응답 내용:"
-                                                cat /tmp/rp-upload-response.txt
+                                                if [ -f /tmp/rp-upload-response.txt ]; then
+                                                    cat /tmp/rp-upload-response.txt
+                                                else
+                                                    echo "응답 파일이 없습니다."
+                                                fi
                                                 rm -f /tmp/rp-upload-response.txt
                                             fi
                                             
@@ -250,18 +261,22 @@ EOF
                                 echo classMessage
                                 // 실패했더라도 Launch 상태를 STOPPED로 변경하는 것을 시도합니다.
                                 try {
-                                    // 💡 수정: 환경 변수를 사용하여 유효성 검사 및 쉘 스크립트에 전달
-                                    if (env.LAUNCH_ID) {
+                                    // 💡 수정: Groovy Safe Navigation ?.를 사용하여 null 체크 (더 안전)
+                                    def launchId = env.LAUNCH_ID?.trim() // Trim으로 안전하게 공백 제거
+                                    
+                                    if (launchId) { // null이거나 빈 문자열이 아닌 경우에만 실행
                                         withCredentials([string(credentialsId: 'slack-reportportal-token', variable: 'RP_TOKEN')]) {
                                             sh """
-                                                echo "⚠️ 오류 발생 후 Launch ${env.LAUNCH_ID} 상태를 STOPPED로 강제 변경 시도..."
+                                                echo "⚠️ 오류 발생 후 Launch ${launchId} 상태를 STOPPED로 강제 변경 시도..."
                                                 export RP_ENDPOINT=http://10.10.0.30:8082/api/v1
                                                 export RP_TOKEN=${RP_TOKEN}
                                                 export RP_PROJECT=test_automation
-                                                node scripts/get-rp-id.js update ${env.LAUNCH_ID} STOPPED
+                                                node scripts/get-rp-id.js update ${launchId} STOPPED
                                                 echo "✅ 강제 STOPPED 처리 완료"
                                             """
                                         }
+                                    } else {
+                                        echo "⚠️ Launch ID가 유효하지 않아 STOPPED 처리를 건너뜁니다."
                                     }
                                 } catch (Exception innerE) {
                                     // 안전한 에러 메시지 처리
