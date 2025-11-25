@@ -156,8 +156,8 @@ pipeline {
                                         set RP_ENDPOINT=http://localhost:8082/api/v1
                                         set RP_TOKEN=%RP_TOKEN%
                                         set RP_PROJECT=test_automation
-                                        set LAUNCH_ID=${launchIdStr}
-                                        set LAUNCH_UUID=${launchUuidStr}
+                                        set LAUNCH_ID=""" + launchIdStr + """
+                                        set LAUNCH_UUID=""" + launchUuidStr + """
                                         
                                         echo Creating Allure report ZIP file...
                                         REM Wait 2 seconds (to resolve file lock issue)
