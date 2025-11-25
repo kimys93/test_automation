@@ -27,7 +27,7 @@ pipeline {
                 // GitLab 저장소에서 체크아웃 (Jenkins Credentials에 'gitlab-credentials' ID로 저장 필요)
                 git url: 'http://10.10.1.39/platformqa/macaron/test_automation.git', 
                      branch: 'main',
-                     credentialsId: '7447dc1e-18c0-46bd-af10-05dfed134b70'
+                     credentialsId: 'jenkins_test_automation'
             }
         }
         
@@ -343,7 +343,7 @@ ${testStatus == 'Success' ? '\n:white_check_mark: Success - 모든 테스트 성
                             channel: 'C07KHG2TS48',
                             color: testStatus == 'Success' ? 'good' : 'danger',
                             message: message,
-                            tokenCredentialId: 'slack-token'
+                            tokenCredentialId: 'slack-api-token'
                         )
                     } catch (Exception e) {
                         echo "Slack 메시지 전송 실패: ${e.getMessage()}"
