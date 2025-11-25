@@ -184,11 +184,11 @@ pipeline {
                                             BUILD_NUMBER=\${BUILD_NUMBER:-1}
                                             ALLURE_REPORT_URL="\${JENKINS_URL}/job/\${JOB_NAME}/\${BUILD_NUMBER}/Allure_20Report/"
                                             
-                                            # JSON 파일 생성 (마크다운 링크 형식 시도, 쉘 변수 치환 허용)
+                                            # JSON 파일 생성 (마크다운 링크 형식 시도)
                                             # heredoc 사용하여 JSON 이스케이프 문제 해결
-                                            # ${변수명} 형식으로 쉘 변수를 명확하게 치환
+                                            # 쉘 변수는 $변수명 형식 사용 (이스케이프 제거)
                                             cat > rp-json-part.txt <<EOF
-[{"itemUuid":"\${ITEM_ID}","launchUuid":"\${LAUNCH_UUID}","level":"INFO","message":"Allure Report: [Open Allure Report](\${ALLURE_REPORT_URL})","time":"\${NOW}"}]
+[{"itemUuid":"$ITEM_ID","launchUuid":"$LAUNCH_UUID","level":"INFO","message":"Allure Report: [Open Allure Report]($ALLURE_REPORT_URL)","time":"$NOW"}]
 EOF
                                             
                                             echo "📤 ReportPortal에 Allure 리포트 링크 전송 중..."
