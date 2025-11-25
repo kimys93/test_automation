@@ -117,7 +117,7 @@ pipeline {
                                     
                                     // 3. JSON 요청 파트 구성 및 임시 파일로 저장
                                     def now = new Date().format("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", TimeZone.getTimeZone('UTC'))
-                                    def jsonContent = """{"itemUuid":"${itemId}","launchUuid":"${launchId}","level":"INFO","message":"Allure Report: allure-report.zip","time":"${now}"}"""
+                                    def jsonContent = """[{"itemUuid":"${itemId}","launchUuid":"${launchId}","level":"INFO","message":"Allure Report: allure-report.zip","time":"${now}"}]"""
                                     
                                     // JSON을 임시 파일로 저장 (특수문자 이스케이프 문제 방지)
                                     writeFile file: 'rp-json-part.txt', text: jsonContent
