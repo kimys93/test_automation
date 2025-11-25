@@ -166,10 +166,11 @@ pipeline {
                                             export LAUNCH_ID=${launchId}
                                             export LAUNCH_UUID=${launchUuid}
                                             
-                                            echo "📦 Allure 리포트 ZIP 파일 생성..."
+                                            echo "📦 Allure 리포트 TAR 파일 생성..."
                                             # 2초 대기 (파일 잠금 문제 해결)
                                             sleep 2
-                                            cd allure-report && zip -r ../allure-report.zip . && cd ..
+                                            # tar를 사용하여 압축 (서브셸 사용하여 원래 디렉토리로 자동 복귀)
+                                            tar -czf allure-report.tar.gz -C allure-report .
                                             
                                             echo "⚡️ Launch \$LAUNCH_ID 상태를 ACTIVE로 변경..."
                                             node scripts/get-rp-id.js update \$LAUNCH_ID ACTIVE
@@ -183,11 +184,11 @@ pipeline {
                                             NOW=\$(date -u +"%Y-%m-%dT%H:%M:%S.%3NZ")
                                             
                                             # JSON 파일 생성
-                                            echo "[{\\"itemUuid\\":\\"\$ITEM_ID\\",\\"launchUuid\\":\\"\$LAUNCH_UUID\\",\\"level\\":\\"INFO\\",\\"message\\":\\"Allure Report: allure-report.zip\\",\\"time\\":\\"\$NOW\\"}]" > rp-json-part.txt
+                                            echo "[{\\"itemUuid\\":\\"\$ITEM_ID\\",\\"launchUuid\\":\\"\$LAUNCH_UUID\\",\\"level\\":\\"INFO\\",\\"message\\":\\"Allure Report: allure-report.tar.gz\\",\\"time\\":\\"\$NOW\\"}]" > rp-json-part.txt
                                             
                                             echo "📤 curl을 사용하여 ReportPortal에 파일 업로드 시작..."
                                             # 💡 수정: HTTP 상태 코드를 명시적으로 확인하여 2xx가 아니면 실패 처리
-                                            HTTP_CODE=\$(curl -X POST "\$RP_ENDPOINT/\$RP_PROJECT/log" -H "Authorization: Bearer \$RP_TOKEN" -F "json_request_part=@rp-json-part.txt;type=application/json" -F "file=@allure-report.zip;filename=allure-report.zip;type=application/zip" -w "%{http_code}" -o /tmp/rp-upload-response.txt -s)
+                                            HTTP_CODE=\$(curl -X POST "\$RP_ENDPOINT/\$RP_PROJECT/log" -H "Authorization: Bearer \$RP_TOKEN" -F "json_request_part=@rp-json-part.txt;type=application/json" -F "file=@allure-report.tar.gz;filename=allure-report.tar.gz;type=application/gzip" -w "%{http_code}" -o /tmp/rp-upload-response.txt -s)
                                             
                                             if [ "\$HTTP_CODE" -lt 200 ] || [ "\$HTTP_CODE" -ge 300 ]; then
                                                 echo "❌ ReportPortal 업로드 실패: HTTP \$HTTP_CODE"
@@ -205,7 +206,7 @@ pipeline {
                                             echo "DEBUG: Launch \$LAUNCH_ID 상태를 STOPPED로 변경 완료"
                                             
                                             echo "✅ 임시 파일 삭제..."
-                                            rm -f allure-report.zip
+                                            rm -f allure-report.tar.gz
                                             rm -f rp-json-part.txt
                                             echo "✅ 임시 파일 삭제 완료"
                                         """
