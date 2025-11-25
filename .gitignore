@@ -10,6 +10,7 @@ playwright/.auth/*.json
 allure-results/
 allure-results-permanent/
 allure-report/
+allure-report.zip
 reports/
 
 # Environment variables

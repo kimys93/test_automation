@@ -84,6 +84,47 @@ pipeline {
                             fingerprint: true
                         )
                     }
+                    
+                    // Allure 리포트 생성
+                    if (fileExists('allure-results')) {
+                        sh 'npm run allure:generate || true'
+                        
+                        // Allure 리포트가 생성되었는지 확인
+                        if (fileExists('allure-report')) {
+                            // Allure 리포트를 Jenkins에 게시
+                            try {
+                                allure([
+                                    includeProperties: false,
+                                    jdk: '',
+                                    properties: [],
+                                    reportBuildPolicy: 'ALWAYS',
+                                    results: [[path: 'allure-results']]
+                                ])
+                            } catch (Exception e) {
+                                echo "Allure Jenkins Plugin이 설치되지 않았거나 오류 발생: ${e.getMessage()}"
+                            }
+                            
+                            // Allure 리포트를 ReportPortal에 첨부
+                            try {
+                                withCredentials([string(credentialsId: 'reportportal-token', variable: 'RP_TOKEN')]) {
+                                    sh """
+                                        export RP_ENDPOINT=http://localhost:8082/api/v1
+                                        export RP_TOKEN=${RP_TOKEN}
+                                        export RP_PROJECT=test_automation
+                                        node scripts/attach-allure-to-reportportal.js sanity allure-report
+                                    """
+                                }
+                            } catch (Exception e) {
+                                echo "ReportPortal에 Allure 리포트 첨부 실패: ${e.getMessage()}"
+                            }
+                            
+                            // Allure 리포트 아카이브
+                            archiveArtifacts(
+                                artifacts: 'allure-report/**/*',
+                                fingerprint: true
+                            )
+                        }
+                    }
                 }
             }
         }

@@ -15,7 +15,9 @@ function getReporters() {
     // HTML 리포트는 생성하되 서버는 시작하지 않음 (별도 리포트 서버 사용)
     ['html', { open: 'never' }],
     ['list'],
-    ['json', { outputFile: 'test-results/results.json' }]
+    ['json', { outputFile: 'test-results/results.json' }],
+    // Allure 리포트 생성 (ReportPortal 첨부용)
+    ['allure-playwright', { outputFolder: 'allure-results' }]
   ];
 
   // ReportPortal 설정 (RP_TOKEN이 설정된 경우에만 활성화)
