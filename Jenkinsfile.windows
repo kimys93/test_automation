@@ -100,22 +100,18 @@ pipeline {
                         def skippedTests = 0
                         def failedTestList = []
                         
-                        // stats 객체에서 기본 통계 가져오기
-                        if (resultsJson.containsKey('stats')) {
-                            def stats = resultsJson.stats
-                            // Playwright stats 구조: passed, failed, skipped, expected, unexpected
-                            passedTests = stats.passed ?: 0
-                            failedTests = stats.failed ?: 0
-                            skippedTests = stats.skipped ?: 0
-                            // 총 테스트 수 = 통과 + 실패 + 건너뜀
-                            totalTests = passedTests + failedTests + skippedTests
-                        }
-                        
-                        // 실패한 테스트 목록 수집 (중첩된 suites 구조 처리 - 반복문 사용)
+                        // suites 구조를 순회하면서 실제 테스트 결과를 집계 (ReportPortal 방식과 동일)
                         def suitesToProcess = []
                         if (resultsJson.containsKey('suites') && resultsJson.suites instanceof List) {
                             suitesToProcess.addAll(resultsJson.suites)
                         }
+                        
+                        // 통계 초기화
+                        totalTests = 0
+                        passedTests = 0
+                        failedTests = 0
+                        skippedTests = 0
+                        failedTestList = []
                         
                         while (!suitesToProcess.isEmpty()) {
                             def currentSuite = suitesToProcess.remove(0)
@@ -125,19 +121,29 @@ pipeline {
                                 suitesToProcess.addAll(currentSuite.suites)
                             }
                             
-                            // specs 처리
+                            // specs 처리 - 각 테스트의 실제 결과를 집계
                             if (currentSuite.containsKey('specs') && currentSuite.specs instanceof List) {
                                 currentSuite.specs.each { spec ->
                                     if (spec.containsKey('tests') && spec.tests instanceof List) {
                                         spec.tests.each { test ->
-                                            if (test.containsKey('results') && test.results instanceof List) {
+                                            if (test.containsKey('results') && test.results instanceof List && test.results.size() > 0) {
+                                                // 마지막 결과가 최종 상태 (retry 고려)
                                                 def finalResult = test.results[test.results.size() - 1]
                                                 if (finalResult != null) {
                                                     def resultStatus = finalResult.status ?: 'unknown'
                                                     def testTitle = spec.title ?: 'Unknown Test'
                                                     
-                                                    if (resultStatus == 'failed' || resultStatus == 'timedout' || resultStatus == 'interrupted') {
+                                                    // 총 테스트 수 증가
+                                                    totalTests++
+                                                    
+                                                    // 상태별 카운트
+                                                    if (resultStatus == 'passed') {
+                                                        passedTests++
+                                                    } else if (resultStatus == 'failed' || resultStatus == 'timedout' || resultStatus == 'interrupted') {
+                                                        failedTests++
                                                         failedTestList.add("• ${testTitle} [${resultStatus.capitalize()}]")
+                                                    } else if (resultStatus == 'skipped') {
+                                                        skippedTests++
                                                     }
                                                 }
                                             }
