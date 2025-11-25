@@ -188,8 +188,15 @@ pipeline {
                                             echo "📝 JSON 요청 파트 생성..."
                                             NOW=\$(date -u +"%Y-%m-%dT%H:%M:%S.%3NZ")
                                             
-                                            # JSON 파일 생성
-                                            echo "[{\\"itemUuid\\":\\"\$ITEM_ID\\",\\"launchUuid\\":\\"\$LAUNCH_UUID\\",\\"level\\":\\"INFO\\",\\"message\\":\\"Allure Report: allure-report.zip\\",\\"time\\":\\"\$NOW\\"}]" > rp-json-part.txt
+                                            # Jenkins 다운로드 URL 생성
+                                            JENKINS_URL=\${JENKINS_URL:-http://10.10.0.159:8080}
+                                            JOB_NAME=\${JOB_NAME:-test_automation}
+                                            BUILD_NUMBER=\${BUILD_NUMBER:-1}
+                                            ALLURE_REPORT_URL="\${JENKINS_URL}/job/\${JOB_NAME}/\${BUILD_NUMBER}/Allure_20Report/"
+                                            DOWNLOAD_URL="\${JENKINS_URL}/job/\${JOB_NAME}/\${BUILD_NUMBER}/artifact/allure-report.zip"
+                                            
+                                            # JSON 파일 생성 (Jenkins 링크 포함)
+                                            echo "[{\\"itemUuid\\":\\"\$ITEM_ID\\",\\"launchUuid\\":\\"\$LAUNCH_UUID\\",\\"level\\":\\"INFO\\",\\"message\\":\\"Allure Report: View HTML - \${ALLURE_REPORT_URL} | Download ZIP - \${DOWNLOAD_URL}\\",\\"time\\":\\"\$NOW\\"}]" > rp-json-part.txt
                                             
                                             echo "📤 curl을 사용하여 ReportPortal에 파일 업로드 시작..."
                                             echo "DEBUG: 파일 크기 확인..."
@@ -264,7 +271,17 @@ pipeline {
                                 }
                             }
                             
-                            // Allure 리포트 아카이브
+                            // Allure 리포트 HTML 게시 및 아카이브
+                            if (fileExists('allure-report')) {
+                                publishHTML([
+                                    allowMissing: false,
+                                    alwaysLinkToLastBuild: false,
+                                    keepAll: true,
+                                    reportDir: 'allure-report',
+                                    reportFiles: 'index.html',
+                                    reportName: 'Allure Report'
+                                ])
+                            }
                             archiveArtifacts(
                                 artifacts: 'allure-report/**/*',
                                 fingerprint: true
@@ -343,7 +360,7 @@ pipeline {
                         }
                         
                         def testStatus = failedTests > 0 || skippedTests > 0 ? 'Fail' : 'Success'
-                        def jenkinsUrl = 'http://localhost:8080'
+                        def jenkinsUrl = 'http://10.10.0.159:8080'
                         def jobName = env.JOB_NAME ?: 'test_automation'
                         def buildNumber = env.BUILD_NUMBER ?: '1'
                         def playwrightReportUrl = "${jenkinsUrl}/job/${jobName}/${buildNumber}/Playwright_20Report/"

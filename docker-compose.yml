@@ -555,25 +555,24 @@ services:
       <<: *logging
     environment:
       <<: *common-analyzer-environment
-  volumes:
+    volumes:
       - storage:/backend/storage
-  healthcheck:
+    healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:5001 || wget -q --spider http://localhost:5001/ || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 60s
-  depends_on:
+    depends_on:
       opensearch:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-  networks:
+    networks:
       - reportportal
-  restart: always
-  profiles:
+    restart: always
+    profiles:
       - ''
-
 
 ## @section Volumes
 ## Named volumes for persistent data storage
