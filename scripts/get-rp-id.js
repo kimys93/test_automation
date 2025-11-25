@@ -80,7 +80,8 @@ async function findFirstTestItem(launchId) {
 
     const data = await response.json();
     if (data.content && data.content.length > 0) {
-      return data.content[0].id.toString();
+      // ReportPortal API는 itemUuid를 요구하므로 uuid를 반환
+      return data.content[0].uuid;
     } else {
       throw new Error('Test Item을 찾을 수 없습니다.');
     }
