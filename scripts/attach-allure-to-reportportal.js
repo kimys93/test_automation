@@ -136,16 +136,21 @@ async function attachFileToLaunch(launchId, filePath, fileName) {
     });
     
     // 필수 필드: json_request_part (JSON 문자열)
-    // form-data 라이브러리에서 contentType은 options 객체의 속성으로 전달
-    formData.append('json_request_part', Buffer.from(jsonRequestPart, 'utf8'), {
+    // form-data 라이브러리: Content-Type을 명시적으로 설정
+    // 참고: form-data는 options 객체에서 contentType 대신 다른 방식 사용 가능
+    const jsonBuffer = Buffer.from(jsonRequestPart, 'utf8');
+    formData.append('json_request_part', jsonBuffer, {
+      filename: 'request.json',
       contentType: 'application/json',
-      filename: 'request.json'
+      knownLength: jsonBuffer.length
     });
     
     // 필수 필드: file (실제 파일)
+    const fileStats = fs.statSync(filePath);
     formData.append('file', fs.createReadStream(filePath), {
       filename: fileName,
-      contentType: 'application/zip'
+      contentType: 'application/zip',
+      knownLength: fileStats.size
     });
     
     // 디버깅: 전송할 데이터 확인
