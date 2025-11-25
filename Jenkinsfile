@@ -98,7 +98,7 @@ pipeline {
                             
                             // Allure 리포트를 ReportPortal에 첨부 (curl 사용)
                             try {
-                                withCredentials([string(credentialsId: 'reportportal-token', variable: 'RP_TOKEN')]) {
+                                withCredentials([string(credentialsId: 'slack-reportportal-token', variable: 'RP_TOKEN')]) {
                                     // 1. Launch ID 및 UUID 조회 (이 부분만 Groovy에서 수행)
                                     // Node.js 경고 억제 및 순수 JSON 출력만 캡처
                                     def rpInfoJson = sh(returnStdout: true, script: """
@@ -227,7 +227,7 @@ pipeline {
                                 // 실패했더라도 Launch 상태를 STOPPED로 변경하는 것을 시도합니다.
                                 try {
                                     if (launchId) {
-                                        withCredentials([string(credentialsId: 'reportportal-token', variable: 'RP_TOKEN')]) {
+                                        withCredentials([string(credentialsId: 'slack-reportportal-token', variable: 'RP_TOKEN')]) {
                                             sh """
                                                 echo "⚠️ 오류 발생 후 Launch ${launchId} 상태를 STOPPED로 강제 변경 시도..."
                                                 export RP_ENDPOINT=http://localhost:8082/api/v1
