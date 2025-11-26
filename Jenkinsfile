@@ -49,7 +49,7 @@ pipeline {
                             sh """
                                 export RP_ENABLED=true
                                 export RP_ENDPOINT=http://10.10.0.30:8082/api/v1
-                                export RP_TOKEN=${RP_TOKEN}
+                                export RP_TOKEN=\$RP_TOKEN
                                 export RP_PROJECT=test_automation
                                 export RP_LAUNCH=test-run-${BUILD_NUMBER}
                                 export RP_DEBUG=false
@@ -159,9 +159,10 @@ pipeline {
                                     // 💡 수정: launchId와 launchUuid가 유효한 경우에만 업로드 스크립트 실행
                                     if (launchId && launchUuid) {
                                         // 2. 나머지 모든 ReportPortal 연동/업로드/종료 작업을 하나의 sh 블록으로 통합 실행
+                                        // 보안: RP_TOKEN은 withCredentials 블록에서 이미 환경 변수로 설정되어 있으므로 \$RP_TOKEN으로 참조
                                         sh """
                                             export RP_ENDPOINT=http://10.10.0.30:8082/api/v1
-                                            export RP_TOKEN=${RP_TOKEN}
+                                            export RP_TOKEN=\$RP_TOKEN
                                             export RP_PROJECT=test_automation
                                             export LAUNCH_ID=${launchId}
                                             export LAUNCH_UUID=${launchUuid}
@@ -186,13 +187,15 @@ pipeline {
                                             
                                             # JSON 파일 생성 (Jenkins 링크 포함 - ReportPortal이 URL을 자동으로 링크로 변환)
                                             # ReportPortal은 일반적으로 http:// 또는 https://로 시작하는 URL을 자동으로 클릭 가능한 링크로 변환합니다
-                                            echo "[{\\"itemUuid\\":\\"\$ITEM_ID\\",\\"launchUuid\\":\\"\$LAUNCH_UUID\\",\\"level\\":\\"INFO\\",\\"message\\":\\"Allure Report: \${ALLURE_REPORT_URL}\\",\\"time\\":\\"\$NOW\\"}]" > rp-json-part.txt
+                                            # ReportPortal API는 단일 객체를 기대하므로 배열이 아닌 객체로 생성
+                                            echo "{\\"itemUuid\\":\\"\$ITEM_ID\\",\\"launchUuid\\":\\"\$LAUNCH_UUID\\",\\"level\\":\\"INFO\\",\\"message\\":\\"Allure Report: \${ALLURE_REPORT_URL}\\",\\"time\\":\\"\$NOW\\"}" > rp-json-part.txt
                                             
                                             echo "📤 ReportPortal에 Allure 리포트 링크 전송 중..."
                                             echo "DEBUG: JSON 요청 파트 내용 확인..."
                                             cat rp-json-part.txt
                                             
                                             # ReportPortal 로그 API에 링크만 전송 (파일 업로드 제거)
+                                            # ReportPortal API는 application/json일 때 단일 객체를 기대함
                                             HTTP_CODE=\$(curl -X POST "\$RP_ENDPOINT/\$RP_PROJECT/log" \\
                                                 -H "Authorization: Bearer \$RP_TOKEN" \\
                                                 -H "Content-Type: application/json" \\
@@ -245,7 +248,7 @@ pipeline {
                                             sh """
                                                 echo "⚠️ 오류 발생 후 Launch ${launchId} 상태를 STOPPED로 강제 변경 시도..."
                                                 export RP_ENDPOINT=http://10.10.0.30:8082/api/v1
-                                                export RP_TOKEN=${RP_TOKEN}
+                                                export RP_TOKEN=\$RP_TOKEN
                                                 export RP_PROJECT=test_automation
                                                 node scripts/get-rp-id.js update ${launchId} STOPPED
                                                 echo "✅ 강제 STOPPED 처리 완료"
