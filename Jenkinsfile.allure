@@ -19,7 +19,7 @@ pipeline {
         stage('Checkout') {
             steps {
                 // GitLab 저장소에서 체크아웃 (Jenkins Credentials에 'jenkins_test_automation' ID로 저장 필요)
-                git url: 'http://10.10.1.39/platformqa/macaron/test_automation.git', 
+                git url: 'http://IP주소/platformqa/macaron/test_automation.git', 
                      branch: 'main',
                      credentialsId: 'jenkins_test_automation'
             }
@@ -41,7 +41,7 @@ pipeline {
                         sh """
                             export TEST_TYPE=sanity
                             export BUILD_NUMBER=${BUILD_NUMBER}
-                            export BASE_URL=http://10.10.0.159:8000
+                            export BASE_URL=http://IP주소:8000
                             npm run test:sanity
                         """
                     } catch (Exception e) {
@@ -118,7 +118,7 @@ pipeline {
                         }
                         
                         def testStatus = failedTests > 0 || skippedTests > 0 ? 'Fail' : 'Success'
-                        def jenkinsUrl = 'http://10.10.0.159:8080'
+                        def jenkinsUrl = 'http://IP주소:8080'
                         def jobName = env.JOB_NAME ?: 'test_automation'
                         def buildNumber = env.BUILD_NUMBER ?: '1'
                         // Allure Plugin이 생성한 리포트 URL (CSP 문제 없음)
