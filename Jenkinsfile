@@ -359,7 +359,7 @@ pipeline {
                         def jenkinsUrl = 'http://10.10.0.159:8080'
                         def jobName = env.JOB_NAME ?: 'test_automation'
                         def buildNumber = env.BUILD_NUMBER ?: '1'
-                        def playwrightReportUrl = "${jenkinsUrl}/job/${jobName}/${buildNumber}/Playwright_20Report/"
+                        def allureReportUrl = "${jenkinsUrl}/job/${jobName}/${buildNumber}/Allure_20Report/"
                         def reportPortalUrl = "http://10.10.0.30:8082/ui/#test_automation/launches/all"
                         
                         // 실패한 테스트 리스트 메시지 구성
@@ -370,8 +370,8 @@ pipeline {
                         
                         def message = """Test Status:
 Total Tests: ${totalTests}, Passed: ${passedTests}, Failed: ${failedTests}, Skipped: ${skippedTests}
-📋 <${playwrightReportUrl}|Playwright Report>
-📊 <${reportPortalUrl}|ReportPortal Dashboard>
+📊 <${allureReportUrl}|Allure Report>
+🔍 <${reportPortalUrl}|ReportPortal Dashboard>
 ${testStatus == 'Success' ? '\n:white_check_mark: Success - 모든 테스트 성공' : '\n:red_circle: Fail - 실패한 케이스 확인 필요'}${failureListMessage}"""
                         
                         slackSend(
