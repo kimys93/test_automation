@@ -13,7 +13,6 @@ pipeline {
         JENKINS_URL = "${env.JENKINS_URL}"
         TEST_TYPE = "${env.TEST_TYPE}"
         BUILD_NUMBER = "${env.BUILD_NUMBER}"
-        GIT_COMMIT = "${env.GIT_COMMIT}"
         
         // ReportPortal 설정
         RP_ENDPOINT = "${env.RP_ENDPOINT ?: 'http://10.10.0.30:8082/api/v1'}"
@@ -55,7 +54,7 @@ pipeline {
                                 export RP_DEBUG=false
                                 export TEST_TYPE=sanity
                                 export BUILD_NUMBER=${BUILD_NUMBER}
-                                export BASE_URL=http://localhost:3000
+                                export BASE_URL=http://10.10.0.159:8000
                                 npm run test:sanity
                             """
                         }
@@ -66,23 +65,11 @@ pipeline {
             }
         }
         
-        stage('Process Test Results') {
-            steps {
-                script {
-                    
-                    // Allure 리포트는 Allure Plugin이 자동으로 생성 (post 섹션에서 처리)
-                    if (fileExists('allure-results')) {
-                        echo "✅ Allure results 생성 완료 (Allure Plugin이 자동으로 리포트 생성)"
-                    }
-                }
-            }
-        }
-        
     }
     
     post {
         always {
-            // Allure Plugin으로 리포트 자동 생성 (CSP 문제 해결됨)
+            // Allure Plugin으로 리포트 자동 생성
             allure([
                 results: [[path: "allure-results"]],
                 reportBuildPolicy: 'ALWAYS'
