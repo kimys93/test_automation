@@ -45,21 +45,6 @@ docker compose up -d
 - **ReportPortal Gateway** (포트: 8082): UI 및 API 게이트웨이
 - **ReportPortal DB** (포트: 5432): 데이터베이스
 
-### 4. 환경 변수 설정
-
-모든 설정은 코드에 하드코딩되어 있습니다. `.env` 파일은 필요하지 않습니다.
-
-**하드코딩된 설정:**
-- `BASE_URL`: `http://localhost:3000`
-- `JENKINS_URL`: `http://localhost:8080`
-- `TEST_TYPE`: `sanity`
-- `RP_ENDPOINT`: `http://localhost:8082/api`
-- `RP_ENABLED`: `true` (항상 활성화)
-- `RP_PROJECT`: `test_automation` (고정 프로젝트명)
-- `RP_LAUNCH`: `test-run-${BUILD_NUMBER}` (빌드 번호 기반)
-- `RP_DEBUG`: `false` (디버그 모드 비활성화)
-- `RP_TOKEN`: Jenkins Credential로 관리 (credential ID: `reportportal-token`)
-
 ## 테스트 실행
 
 ### 로컬에서 테스트 실행
