@@ -106,13 +106,47 @@ npm run test:report
 
 ### CI/CD 파이프라인 (Jenkins)
 
-Jenkins에서 자동으로 다음 단계를 실행합니다:
+프로젝트에는 두 가지 Jenkinsfile이 제공됩니다:
+
+#### Jenkinsfile (ReportPortal 통합 버전)
+
+**용도**: ReportPortal을 사용하여 테스트 결과를 중앙에서 관리하고 시각화하는 경우 사용
+
+**특징**:
+- ✅ ReportPortal 통합 (테스트 결과 자동 전송)
+- ✅ Allure Plugin 리포트 생성
+- ✅ Slack 알림 (Allure Report + ReportPortal Dashboard 링크)
+- ✅ ReportPortal credential 필요 (`slack-reportportal-token`)
+
+**사용 시나리오**:
+- 테스트 결과를 ReportPortal에서 중앙 관리하고 싶을 때
+- 팀 전체가 테스트 결과를 공유하고 분석해야 할 때
+- 테스트 히스토리와 트렌드 분석이 필요할 때
+
+#### Jenkinsfile.allure (Allure 전용 버전)
+
+**용도**: ReportPortal 없이 Allure 리포트만 사용하는 경우 사용
+
+**특징**:
+- ✅ Allure Plugin 리포트 생성
+- ✅ Slack 알림 (Allure Report 링크만)
+- ❌ ReportPortal 통합 없음
+- ❌ ReportPortal credential 불필요
+
+**사용 시나리오**:
+- ReportPortal 인프라가 없거나 사용하지 않을 때
+- 간단하게 Allure 리포트만으로 충분할 때
+- 빠르게 테스트를 실행하고 결과를 확인하고 싶을 때
+
+#### Jenkins 파이프라인 실행 단계
+
+두 Jenkinsfile 모두 다음 단계를 실행합니다:
 
 1. **Checkout**: Git 저장소에서 코드 체크아웃
 2. **Install Dependencies**: npm 패키지 설치
 3. **Run Sanity Tests**: Playwright 테스트 실행
-4. **Process Test Results**: 테스트 결과 처리 및 HTML 리포트 생성
-5. **Send Slack Notification**: Slack에 테스트 결과 및 링크 전송
+4. **Generate Allure Report**: Allure Plugin으로 리포트 자동 생성
+5. **Send Slack Notification**: Slack에 테스트 결과 및 리포트 링크 전송
 
 ### ReportPortal 통합
 
@@ -126,7 +160,7 @@ docker compose up -d reportportal
 ```
 
 2. **ReportPortal 접속**:
-   - UI: `http://localhost:8082`
+   - UI: `http://IP주소:8082`
    - 기본 계정: `default/1q2w3e` (첫 접속 시 변경 필요)
 
 3. **프로젝트 및 사용자 생성**:
@@ -181,8 +215,8 @@ test-automation/
 │   └── regression.spec.js   # 모든 기능 종합 검증
 ├── scripts/                  # 유틸리티 스크립트
 ├── docker-compose.yml        # Docker Compose 설정
-├── Jenkinsfile              # Jenkins 파이프라인 (macOS/Linux)
-├── Jenkinsfile.windows      # Jenkins 파이프라인 (Windows)
+├── Jenkinsfile              # Jenkins 파이프라인 (ReportPortal 통합 버전)
+├── Jenkinsfile.allure       # Jenkins 파이프라인 (Allure 전용 버전)
 ├── playwright.config.js      # Playwright 설정
 └── package.json             # 프로젝트 설정
 ```
@@ -204,7 +238,7 @@ Jenkins 관리 → 시스템 설정 → Global properties → Environment variab
 
 - **JENKINS_URL**: `http://IP주소:8080` (Jenkins 서버 주소)
 - **TEST_TYPE**: `sanity` (또는 `regression`)
-- **RP_ENDPOINT**: `http://localhost:8082/api` (ReportPortal API 주소 - Traefik Gateway를 통해 접근)
+- **RP_ENDPOINT**: `http://IP주소:8082/api` (ReportPortal API 주소 - Traefik Gateway를 통해 접근)
 - **RP_TOKEN**: Jenkins Credential로 관리 (Credential ID: `reportportal-token`)
 - **참고**: `RP_ENABLED`와 `RP_PROJECT`는 코드에 하드코딩되어 있습니다 (항상 활성화, 프로젝트명: `test_automation`)
 
