@@ -332,7 +332,6 @@ module.exports = NewPage;
 
 ## 문서
 
-- [JENKINS_SETUP.md](./JENKINS_SETUP.md): Jenkins CI/CD 파이프라인 설정 가이드
 - [SLACK_SETUP.md](./SLACK_SETUP.md): Slack 알림 설정 가이드
 
 ## 기술 스택
