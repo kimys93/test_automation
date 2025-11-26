@@ -86,12 +86,13 @@ pipeline {
                         )
                     }
                     
-                    // Allure 리포트 생성
+                    // Allure 리포트는 post 섹션의 Allure Plugin에서 자동 처리됨
+                    // allure-results만 생성하면 됨 (이미 테스트 실행 시 생성됨)
                     if (fileExists('allure-results')) {
-                        sh 'npm run allure:generate || true'
+                        echo "✅ Allure results 생성 완료 (Allure Plugin이 자동으로 리포트 생성)"
                         
-                        // Allure 리포트가 생성되었는지 확인
-                        if (fileExists('allure-report')) {
+                        // ReportPortal 연동을 위한 기존 로직 유지
+                        if (fileExists('allure-results')) {
                             // 💡 수정: 변수를 try 블록 밖에서 String 타입으로 명시적 초기화
                             String launchId = null
                             String launchUuid = null
@@ -267,36 +268,8 @@ pipeline {
                                 }
                             }
                             
-                            // Allure 리포트 HTML 게시 및 아카이브
-                            if (fileExists('allure-report')) {
-                                // Allure Report를 ZIP으로 압축 (다운로드용)
-                                sh '''
-                                    if command -v zip >/dev/null 2>&1; then
-                                        zip -r allure-report.zip allure-report/ || true
-                                    else
-                                        echo "zip 명령어를 찾을 수 없습니다. 설치 중..."
-                                        if command -v apt-get >/dev/null 2>&1; then
-                                            sudo apt-get update && sudo apt-get install -y zip || true
-                                        elif command -v yum >/dev/null 2>&1; then
-                                            sudo yum install -y zip || true
-                                        fi
-                                        zip -r allure-report.zip allure-report/ || true
-                                    fi
-                                '''
-                                
-                                publishHTML([
-                                    allowMissing: false,
-                                    alwaysLinkToLastBuild: false,
-                                    keepAll: true,
-                                    reportDir: 'allure-report',
-                                    reportFiles: 'index.html',
-                                    reportName: 'Allure Report'
-                                ])
-                            }
-                            archiveArtifacts(
-                                artifacts: 'allure-report/**/*,allure-report.zip',
-                                fingerprint: true
-                            )
+                            // Allure Plugin이 자동으로 리포트를 생성하므로 여기서는 아카이브만 수행
+                            // Allure Plugin은 post 섹션에서 처리됨
                         }
                     }
                 }
@@ -307,6 +280,12 @@ pipeline {
     
     post {
         always {
+            // Allure Plugin으로 리포트 자동 생성 (CSP 문제 해결됨)
+            allure([
+                results: [[path: "allure-results"]],
+                reportBuildPolicy: 'ALWAYS'
+            ])
+            
             script {
                 if (fileExists('test-results/results.json')) {
                     try {
@@ -374,8 +353,8 @@ pipeline {
                         def jenkinsUrl = 'http://10.10.0.159:8080'
                         def jobName = env.JOB_NAME ?: 'test_automation'
                         def buildNumber = env.BUILD_NUMBER ?: '1'
-                        def allureReportUrl = "${jenkinsUrl}/job/${jobName}/${buildNumber}/Allure_20Report/"
-                        def allureDownloadUrl = "${jenkinsUrl}/job/${jobName}/${buildNumber}/artifact/allure-report.zip"
+                        // Allure Plugin이 생성한 리포트 URL (CSP 문제 없음)
+                        def allureReportUrl = "${jenkinsUrl}/job/${jobName}/${buildNumber}/allure/"
                         def reportPortalUrl = "http://10.10.0.30:8082/ui/#test_automation/launches/all"
                         
                         // 실패한 테스트 리스트 메시지 구성
@@ -386,8 +365,7 @@ pipeline {
                         
                         def message = """Test Status:
 Total Tests: ${totalTests}, Passed: ${passedTests}, Failed: ${failedTests}, Skipped: ${skippedTests}
-📊 <${allureReportUrl}|Allure Report (View)>
-📥 <${allureDownloadUrl}|Allure Report (Download ZIP)>
+📊 <${allureReportUrl}|Allure Report>
 🔍 <${reportPortalUrl}|ReportPortal Dashboard>
 ${testStatus == 'Success' ? '\n:white_check_mark: Success - 모든 테스트 성공' : '\n:red_circle: Fail - 실패한 케이스 확인 필요'}${failureListMessage}"""
                         
