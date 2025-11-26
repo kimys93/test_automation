@@ -34,6 +34,9 @@ function getReporters() {
       launch: launchName, // 환경 변수에서 가져오거나 기본값
       attributes: [
         {
+          value: 'sanity' // 대시보드 필터링용 (key 없이 value만)
+        },
+        {
           key: 'testType',
           value: 'sanity' // Hardcoded
         },
