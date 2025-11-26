@@ -215,20 +215,6 @@ test-automation/
 - **가독성**: 테스트 코드가 더 간결하고 읽기 쉬움
 - **확장성**: 새로운 페이지 추가가 용이
 
-## Jenkins 설정
-
-### 환경 변수 설정
-
-Jenkins 관리 → 시스템 설정 → Global properties → Environment variables에서 다음 변수를 설정해야 합니다:
-
-- **JENKINS_URL**: `http://IP주소:8080` (Jenkins 서버 주소)
-- **TEST_TYPE**: `sanity` (또는 `regression`)
-- **RP_ENDPOINT**: `http://IP주소:8082/api` (ReportPortal API 주소 - Traefik Gateway를 통해 접근)
-- **RP_TOKEN**: Jenkins Credential로 관리 (Credential ID: `reportportal-token`)
-- **참고**: `RP_ENABLED`와 `RP_PROJECT`는 코드에 하드코딩되어 있습니다 (항상 활성화, 프로젝트명: `test_automation`)
-
-자세한 설정 방법은 [JENKINS_SETUP.md](./JENKINS_SETUP.md)를 참고하세요.
-
 ## Slack 통합
 
 ### 알림 설정
