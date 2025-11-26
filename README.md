@@ -344,7 +344,6 @@ module.exports = NewPage;
 2. `login.spec.js`와 `auth.spec.js`의 테스트 계정 정보를 실제 테스트 계정으로 변경해야 합니다.
 3. 실제 테스트 환경에 맞게 셀렉터와 URL을 조정해야 할 수 있습니다.
 4. Docker Compose를 사용하는 경우, Jenkins에서 Docker 명령어를 실행할 수 있는 권한이 필요합니다.
-5. `.env` 파일은 Git에 커밋되지 않습니다 (`.gitignore`에 포함됨)
 
 ## 문서
 
