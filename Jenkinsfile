@@ -85,18 +85,11 @@ pipeline {
                         def skippedTests = 0
                         def failedTestList = []
                         
-                        // suites 구조를 순회하면서 실제 테스트 결과를 집계 (ReportPortal 방식과 동일)
+                        // suites 구조를 순회하면서 실제 테스트 결과를 집계
                         def suitesToProcess = []
                         if (resultsJson.containsKey('suites') && resultsJson.suites instanceof List) {
                             suitesToProcess.addAll(resultsJson.suites)
                         }
-                        
-                        // 통계 초기화
-                        totalTests = 0
-                        passedTests = 0
-                        failedTests = 0
-                        skippedTests = 0
-                        failedTestList = []
                         
                         while (!suitesToProcess.isEmpty()) {
                             def currentSuite = suitesToProcess.remove(0)
