@@ -13,7 +13,7 @@ class BasePage {
     this.page = page;
     this.baseURL = 'http://IP주소:8000';
     // 기본 요소들
-    this.body = this.page.locator('bodsy');
+    this.body = this.page.locator('body');
     this.navigation = this.page.locator('nav, header, .navbar');
     // 로그아웃 링크
     this.logoutLink = this.page.locator('a[onclick*="logout"], a:has-text("로그아웃")');
