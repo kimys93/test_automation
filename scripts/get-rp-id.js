@@ -24,7 +24,7 @@ if (!RP_TOKEN) {
   process.exit(1);
 }
 
-const type = process.argv[2]; // 'launch' or 'item'
+const type = process.argv[2]; // 'launch', 'item', 'update', or 'attributes'
 const identifier = process.argv[3]; // launchName or launchId
 
 if (!type || !identifier) {
@@ -117,6 +117,61 @@ async function updateLaunchStatus(launchId, status) {
   }
 }
 
+async function updateLaunchAttributes(launchId, attributes) {
+  try {
+    // 먼저 현재 Launch 정보를 조회하여 기존 attributes 가져오기
+    const getUrl = `${RP_ENDPOINT}/${RP_PROJECT}/launch/${launchId}`;
+    const getResponse = await fetch(getUrl, {
+      headers: {
+        'Authorization': `Bearer ${RP_TOKEN}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!getResponse.ok) {
+      const errorText = await getResponse.text();
+      throw new Error(`HTTP ${getResponse.status}: ${errorText}`);
+    }
+
+    const launchData = await getResponse.json();
+    const existingAttributes = launchData.attributes || [];
+
+    // 기존 attributes와 새로운 attributes 병합 (중복 제거)
+    const mergedAttributes = [...existingAttributes];
+    for (const newAttr of attributes) {
+      const existingIndex = mergedAttributes.findIndex(attr => attr.key === newAttr.key);
+      if (existingIndex >= 0) {
+        mergedAttributes[existingIndex] = newAttr; // 기존 것 교체
+      } else {
+        mergedAttributes.push(newAttr); // 새로 추가
+      }
+    }
+
+    // Launch 업데이트 API 호출
+    const updateUrl = `${RP_ENDPOINT}/${RP_PROJECT}/launch/${launchId}/update`;
+    const updateResponse = await fetch(updateUrl, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${RP_TOKEN}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        attributes: mergedAttributes
+      })
+    });
+
+    if (!updateResponse.ok) {
+      const errorText = await updateResponse.text();
+      throw new Error(`HTTP ${updateResponse.status}: ${errorText}`);
+    }
+
+    console.error(`DEBUG: Launch ${launchId} attributes 업데이트 완료`);
+  } catch (error) {
+    console.error(`❌ Launch attributes 업데이트 실패: ${error.message}`);
+    process.exit(1);
+  }
+}
+
 async function main() {
   if (type === 'launch') {
     const result = await findLaunchId(identifier);
@@ -137,8 +192,23 @@ async function main() {
     await updateLaunchStatus(launchId, status);
     // update 명령은 출력 없이 성공/실패만 반환
     console.error(`DEBUG: Launch ${launchId} 상태를 ${status}로 변경 완료`);
+  } else if (type === 'attributes') {
+    const launchId = identifier;
+    // attributes는 JSON 형식으로 전달: [{"key":"allureReportUrl","value":"http://..."}]
+    const attributesJson = process.argv[4];
+    if (!attributesJson) {
+      console.error('사용법: node get-rp-id.js attributes <launchId> \'[{"key":"key","value":"value"}]\'');
+      process.exit(1);
+    }
+    try {
+      const attributes = JSON.parse(attributesJson);
+      await updateLaunchAttributes(launchId, attributes);
+    } catch (error) {
+      console.error(`❌ JSON 파싱 실패: ${error.message}`);
+      process.exit(1);
+    }
   } else {
-    console.error('사용법: node get-rp-id.js [launch|item|update] [launchName|launchId|launchId] [status]');
+    console.error('사용법: node get-rp-id.js [launch|item|update|attributes] [launchName|launchId|launchId] [status|attributes]');
     process.exit(1);
   }
 }

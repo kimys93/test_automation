@@ -185,16 +185,22 @@ pipeline {
                                             BUILD_NUMBER=\${BUILD_NUMBER:-1}
                                             ALLURE_REPORT_URL="\${JENKINS_URL}/job/\${JOB_NAME}/\${BUILD_NUMBER}/Allure_20Report/"
                                             
-                                            # JSON 파일 생성 (Jenkins 링크 포함 - HTML 링크 형식 사용)
-                                            # ReportPortal에서 클릭 가능한 링크를 만들기 위해 HTML <a> 태그 사용
-                                            # ReportPortal API는 단일 객체를 기대하므로 배열이 아닌 객체로 생성
-                                            echo "{\\"itemUuid\\":\\"\$ITEM_ID\\",\\"launchUuid\\":\\"\$LAUNCH_UUID\\",\\"level\\":\\"INFO\\",\\"message\\":\\"Allure Report: <a href=\\\\\\"\${ALLURE_REPORT_URL}\\\\\\" target=\\\\\\"_blank\\\\\\">View Report</a>\\",\\"time\\":\\"\$NOW\\"}" > rp-json-part.txt
+                                            echo "📝 Launch Attributes에 Allure Report URL 추가 중..."
+                                            # Launch attributes에 Allure Report URL 추가 (커스텀 필드로 저장)
+                                            ATTRIBUTES_JSON="[{\\"key\\":\\"allureReportUrl\\",\\"value\\":\\"\${ALLURE_REPORT_URL}\\"}]"
+                                            node scripts/get-rp-id.js attributes \$LAUNCH_ID "\$ATTRIBUTES_JSON"
+                                            echo "✅ Launch Attributes 업데이트 완료"
                                             
-                                            echo "📤 ReportPortal에 Allure 리포트 링크 전송 중..."
+                                            # JSON 파일 생성 (로그 메시지용 - 참고 정보)
+                                            # ReportPortal은 HTML 태그를 필터링하므로 URL만 표시 (사용자가 복사하여 사용)
+                                            # ReportPortal API는 단일 객체를 기대하므로 배열이 아닌 객체로 생성
+                                            echo "{\\"itemUuid\\":\\"\$ITEM_ID\\",\\"launchUuid\\":\\"\$LAUNCH_UUID\\",\\"level\\":\\"INFO\\",\\"message\\":\\"Allure Report URL이 Launch Attributes에 저장되었습니다: \${ALLURE_REPORT_URL}\\",\\"time\\":\\"\$NOW\\"}" > rp-json-part.txt
+                                            
+                                            echo "📤 ReportPortal에 로그 메시지 전송 중..."
                                             echo "DEBUG: JSON 요청 파트 내용 확인..."
                                             cat rp-json-part.txt
                                             
-                                            # ReportPortal 로그 API에 링크만 전송 (파일 업로드 제거)
+                                            # ReportPortal 로그 API에 메시지 전송 (참고용)
                                             # ReportPortal API는 application/json일 때 단일 객체를 기대함
                                             HTTP_CODE=\$(curl -X POST "\$RP_ENDPOINT/\$RP_PROJECT/log" \\
                                                 -H "Authorization: Bearer \$RP_TOKEN" \\
@@ -203,14 +209,11 @@ pipeline {
                                                 -w "%{http_code}" -o /tmp/rp-upload-response.txt -s)
                                             
                                             if [ "\$HTTP_CODE" -lt 200 ] || [ "\$HTTP_CODE" -ge 300 ]; then
-                                                echo "❌ ReportPortal 링크 전송 실패: HTTP \$HTTP_CODE"
+                                                echo "⚠️ ReportPortal 로그 메시지 전송 실패: HTTP \$HTTP_CODE (Attributes는 이미 저장됨)"
                                                 cat /tmp/rp-upload-response.txt
                                                 rm -f /tmp/rp-upload-response.txt
-                                                exit 1
                                             else
-                                                echo "✅ ReportPortal 링크 전송 성공: HTTP \$HTTP_CODE"
-                                                echo "DEBUG: 응답 내용:"
-                                                cat /tmp/rp-upload-response.txt
+                                                echo "✅ ReportPortal 로그 메시지 전송 성공: HTTP \$HTTP_CODE"
                                                 rm -f /tmp/rp-upload-response.txt
                                             fi
                                             
