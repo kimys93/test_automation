@@ -269,6 +269,21 @@ pipeline {
                             
                             // Allure 리포트 HTML 게시 및 아카이브
                             if (fileExists('allure-report')) {
+                                // Allure Report를 ZIP으로 압축 (다운로드용)
+                                sh '''
+                                    if command -v zip >/dev/null 2>&1; then
+                                        zip -r allure-report.zip allure-report/ || true
+                                    else
+                                        echo "zip 명령어를 찾을 수 없습니다. 설치 중..."
+                                        if command -v apt-get >/dev/null 2>&1; then
+                                            sudo apt-get update && sudo apt-get install -y zip || true
+                                        elif command -v yum >/dev/null 2>&1; then
+                                            sudo yum install -y zip || true
+                                        fi
+                                        zip -r allure-report.zip allure-report/ || true
+                                    fi
+                                '''
+                                
                                 publishHTML([
                                     allowMissing: false,
                                     alwaysLinkToLastBuild: false,
@@ -279,7 +294,7 @@ pipeline {
                                 ])
                             }
                             archiveArtifacts(
-                                artifacts: 'allure-report/**/*',
+                                artifacts: 'allure-report/**/*,allure-report.zip',
                                 fingerprint: true
                             )
                         }
@@ -360,6 +375,7 @@ pipeline {
                         def jobName = env.JOB_NAME ?: 'test_automation'
                         def buildNumber = env.BUILD_NUMBER ?: '1'
                         def allureReportUrl = "${jenkinsUrl}/job/${jobName}/${buildNumber}/Allure_20Report/"
+                        def allureDownloadUrl = "${jenkinsUrl}/job/${jobName}/${buildNumber}/artifact/allure-report.zip"
                         def reportPortalUrl = "http://10.10.0.30:8082/ui/#test_automation/launches/all"
                         
                         // 실패한 테스트 리스트 메시지 구성
@@ -370,7 +386,8 @@ pipeline {
                         
                         def message = """Test Status:
 Total Tests: ${totalTests}, Passed: ${passedTests}, Failed: ${failedTests}, Skipped: ${skippedTests}
-📊 <${allureReportUrl}|Allure Report>
+📊 <${allureReportUrl}|Allure Report (View)>
+📥 <${allureDownloadUrl}|Allure Report (Download ZIP)>
 🔍 <${reportPortalUrl}|ReportPortal Dashboard>
 ${testStatus == 'Success' ? '\n:white_check_mark: Success - 모든 테스트 성공' : '\n:red_circle: Fail - 실패한 케이스 확인 필요'}${failureListMessage}"""
                         

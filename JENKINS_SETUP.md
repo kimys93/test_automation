@@ -90,8 +90,114 @@ vi ~/.jenkins/config.xml
 3. HTML 리포트가 정상적으로 표시되는지 확인
 4. 외부에서도 접속 가능한지 확인
 
+## Linux에서 Jenkins CSP 비활성화 ⭐
+
+**Linux에서 Jenkins를 systemd 서비스로 설치한 경우:**
+
+### 방법 1: systemd 서비스 파일 수정 (권장)
+
+1. **Jenkins 서비스 파일 찾기:**
+   ```bash
+   # 일반 경로
+   /etc/systemd/system/jenkins.service
+   # 또는
+   /lib/systemd/system/jenkins.service
+   ```
+
+2. **서비스 파일 백업:**
+   ```bash
+   sudo cp /etc/systemd/system/jenkins.service /etc/systemd/system/jenkins.service.backup
+   ```
+
+3. **서비스 파일 편집:**
+   ```bash
+   sudo vi /etc/systemd/system/jenkins.service
+   # 또는
+   sudo nano /etc/systemd/system/jenkins.service
+   ```
+
+4. **`[Service]` 섹션의 `Environment` 또는 `ExecStart` 부분에 Java 옵션 추가:**
+   
+   **옵션 A: Environment 변수로 추가 (권장)**
+   ```ini
+   [Service]
+   Environment="JENKINS_JAVA_OPTIONS=-Djava.awt.headless=true -Dhudson.model.DirectoryBrowserSupport.CSP="
+   ```
+   
+   **옵션 B: ExecStart에 직접 추가**
+   ```ini
+   ExecStart=/usr/bin/java -Dhudson.model.DirectoryBrowserSupport.CSP= -jar /usr/share/jenkins/jenkins.war
+   ```
+
+5. **systemd 설정 리로드 및 Jenkins 재시작:**
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl restart jenkins
+   ```
+
+6. **서비스 상태 확인:**
+   ```bash
+   sudo systemctl status jenkins
+   ```
+
+### 방법 2: Jenkins 설정 파일 직접 수정
+
+1. **Jenkins 설정 디렉토리 확인:**
+   ```bash
+   # 일반 경로
+   /var/lib/jenkins
+   # 또는 Jenkins 웹 UI에서 확인: Jenkins 관리 → 시스템 정보
+   ```
+
+2. **jenkins.xml 파일 수정 (WAR 파일로 실행하는 경우):**
+   ```bash
+   sudo vi /var/lib/jenkins/jenkins.xml
+   ```
+   
+   `<arguments>` 섹션에 추가:
+   ```xml
+   <arguments>
+     -Xrs -Xmx256m -Dhudson.model.DirectoryBrowserSupport.CSP= -jar /usr/share/jenkins/jenkins.war --httpPort=8080 --webroot=/var/cache/jenkins/war
+   </arguments>
+   ```
+
+3. **Jenkins 재시작:**
+   ```bash
+   sudo systemctl restart jenkins
+   ```
+
+### 방법 3: 환경 변수 파일로 설정
+
+1. **Jenkins 환경 변수 파일 생성/수정:**
+   ```bash
+   sudo vi /etc/default/jenkins
+   # 또는
+   sudo vi /etc/sysconfig/jenkins
+   ```
+
+2. **다음 내용 추가:**
+   ```bash
+   JENKINS_JAVA_OPTIONS="-Djava.awt.headless=true -Dhudson.model.DirectoryBrowserSupport.CSP="
+   ```
+
+3. **Jenkins 재시작:**
+   ```bash
+   sudo systemctl restart jenkins
+   ```
+
+### 확인
+
+Jenkins 재시작 후:
+1. **프로세스 확인:**
+   ```bash
+   ps aux | grep jenkins | grep CSP
+   ```
+   `-Dhudson.model.DirectoryBrowserSupport.CSP=` 옵션이 보이면 성공
+
+2. **빌드 실행 후 Allure Report 링크 클릭하여 HTML 리포트가 정상적으로 표시되는지 확인**
+
 ## 참고
 
 - 이 설정은 보안을 완화하므로, 개인 환경이나 신뢰할 수 있는 환경에서만 사용하세요
 - 프로덕션 환경에서는 보안을 고려하여 다른 방법을 사용하는 것을 권장합니다
-- plist 파일을 수정하면 Jenkins 재시작 후에도 설정이 유지됩니다
+- systemd 서비스 파일을 수정하면 Jenkins 재시작 후에도 설정이 유지됩니다
