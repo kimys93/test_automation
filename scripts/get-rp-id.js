@@ -117,9 +117,8 @@ async function updateLaunchStatus(launchId, status) {
   }
 }
 
-async function updateLaunchAttributes(launchId, attributes) {
+async function getLaunchInfo(launchId) {
   try {
-    // 먼저 현재 Launch 정보를 조회하여 기존 attributes 가져오기
     const getUrl = `${RP_ENDPOINT}/${RP_PROJECT}/launch/${launchId}`;
     const getResponse = await fetch(getUrl, {
       headers: {
@@ -134,7 +133,23 @@ async function updateLaunchAttributes(launchId, attributes) {
     }
 
     const launchData = await getResponse.json();
+    return launchData;
+  } catch (error) {
+    console.error(`❌ Launch 정보 조회 실패: ${error.message}`);
+    process.exit(1);
+  }
+}
+
+async function updateLaunchAttributes(launchId, attributes) {
+  try {
+    // 먼저 현재 Launch 정보를 조회하여 기존 attributes 가져오기
+    const launchData = await getLaunchInfo(launchId);
     const existingAttributes = launchData.attributes || [];
+
+    console.error(`DEBUG: 기존 attributes 개수: ${existingAttributes.length}`);
+    if (existingAttributes.length > 0) {
+      console.error(`DEBUG: 기존 attributes: ${JSON.stringify(existingAttributes, null, 2)}`);
+    }
 
     // 기존 attributes와 새로운 attributes 병합 (중복 제거)
     const mergedAttributes = [...existingAttributes];
@@ -142,10 +157,15 @@ async function updateLaunchAttributes(launchId, attributes) {
       const existingIndex = mergedAttributes.findIndex(attr => attr.key === newAttr.key);
       if (existingIndex >= 0) {
         mergedAttributes[existingIndex] = newAttr; // 기존 것 교체
+        console.error(`DEBUG: 기존 attribute 교체: ${newAttr.key}`);
       } else {
         mergedAttributes.push(newAttr); // 새로 추가
+        console.error(`DEBUG: 새 attribute 추가: ${newAttr.key}`);
       }
     }
+
+    console.error(`DEBUG: 병합된 attributes 개수: ${mergedAttributes.length}`);
+    console.error(`DEBUG: 병합된 attributes: ${JSON.stringify(mergedAttributes, null, 2)}`);
 
     // Launch 업데이트 API 호출
     const updateUrl = `${RP_ENDPOINT}/${RP_PROJECT}/launch/${launchId}/update`;
@@ -165,7 +185,17 @@ async function updateLaunchAttributes(launchId, attributes) {
       throw new Error(`HTTP ${updateResponse.status}: ${errorText}`);
     }
 
-    console.error(`DEBUG: Launch ${launchId} attributes 업데이트 완료`);
+    // 업데이트 후 다시 조회하여 확인
+    const updatedLaunchData = await getLaunchInfo(launchId);
+    console.error(`DEBUG: 업데이트 후 attributes 개수: ${updatedLaunchData.attributes?.length || 0}`);
+    if (updatedLaunchData.attributes && updatedLaunchData.attributes.length > 0) {
+      console.error(`DEBUG: 업데이트 후 attributes: ${JSON.stringify(updatedLaunchData.attributes, null, 2)}`);
+    } else {
+      console.error(`⚠️ WARNING: attributes가 저장되지 않았거나 조회되지 않았습니다.`);
+      console.error(`DEBUG: 전체 Launch 응답 구조: ${JSON.stringify(updatedLaunchData, null, 2).substring(0, 500)}`);
+    }
+
+    console.error(`✅ Launch ${launchId} attributes 업데이트 완료`);
   } catch (error) {
     console.error(`❌ Launch attributes 업데이트 실패: ${error.message}`);
     process.exit(1);
@@ -207,8 +237,18 @@ async function main() {
       console.error(`❌ JSON 파싱 실패: ${error.message}`);
       process.exit(1);
     }
+  } else if (type === 'info') {
+    // Launch 정보 조회 (디버깅용)
+    const launchId = identifier;
+    const launchData = await getLaunchInfo(launchId);
+    console.log(JSON.stringify(launchData, null, 2));
+    console.error(`DEBUG: Launch ${launchId} 정보 조회 완료`);
+    console.error(`DEBUG: Attributes 개수: ${launchData.attributes?.length || 0}`);
+    if (launchData.attributes && launchData.attributes.length > 0) {
+      console.error(`DEBUG: Attributes: ${JSON.stringify(launchData.attributes, null, 2)}`);
+    }
   } else {
-    console.error('사용법: node get-rp-id.js [launch|item|update|attributes] [launchName|launchId|launchId] [status|attributes]');
+    console.error('사용법: node get-rp-id.js [launch|item|update|attributes|info] [launchName|launchId|launchId] [status|attributes]');
     process.exit(1);
   }
 }

@@ -191,6 +191,10 @@ pipeline {
                                             node scripts/get-rp-id.js attributes \$LAUNCH_ID "\$ATTRIBUTES_JSON"
                                             echo "✅ Launch Attributes 업데이트 완료"
                                             
+                                            echo "🔍 Launch 정보 확인 중..."
+                                            # Launch 정보 조회하여 attributes 저장 확인
+                                            node scripts/get-rp-id.js info \$LAUNCH_ID | head -50
+                                            
                                             # JSON 파일 생성 (로그 메시지용 - 참고 정보)
                                             # ReportPortal은 HTML 태그를 필터링하므로 URL만 표시 (사용자가 복사하여 사용)
                                             # ReportPortal API는 단일 객체를 기대하므로 배열이 아닌 객체로 생성
