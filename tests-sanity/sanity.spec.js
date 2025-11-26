@@ -85,7 +85,7 @@ test.describe('Sanity Test: 핵심 기능 워크플로우', () => {
 
         // 2. 게시글 작성
         await writePage.postTitleInput.fill(sharedTestTitle);
-        await writePage.postContentInput.fill(testContents);
+        await writePage.postContentInput.fill(testContent);
         await writePage.submitButton.click();
         await writePage.wait(2000); // 작성 완료 대기
 
