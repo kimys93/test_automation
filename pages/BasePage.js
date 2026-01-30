@@ -11,7 +11,7 @@ dotenv.config();
 class BasePage {
   constructor(page) {
     this.page = page;
-    this.baseURL = 'http://IP주소:8000';
+    this.baseURL = 'http://192.168.219.103:3000';
     // 기본 요소들
     this.body = this.page.locator('body');
     this.navigation = this.page.locator('nav, header, .navbar');
