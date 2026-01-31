@@ -574,6 +574,33 @@ services:
     profiles:
       - ''
 
+  ## @param jenkins CI/CD server for running tests and generating Allure reports
+  ## - Port 8080: Jenkins web UI
+  ## - Port 50000: Jenkins agent connections
+  ## - Requires Allure plugin installation via UI after first start
+  ##
+  jenkins:
+    image: jenkins/jenkins:lts-jdk17
+    container_name: jenkins
+    logging:
+      <<: *logging
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    environment:
+      - JAVA_OPTS=-Dhudson.model.DirectoryBrowserSupport.CSP=
+    volumes:
+      - jenkins_home:/var/jenkins_home
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/login || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    networks:
+      - reportportal
+    restart: always
+
 ## @section Volumes
 ## Named volumes for persistent data storage
 ##
@@ -581,6 +608,7 @@ volumes:
   opensearch:
   storage:
   postgres:
+  jenkins_home:
 
 ## @section Networks
 ## Custom Docker network for ReportPortal service discovery
