@@ -7,9 +7,9 @@ class LoginPage extends BasePage {
   constructor(page) {
     super(page);
     // 사용자명 입력 필드
-    this.usernameInput = this.page.locator('#username');
+    this.usernameInput = this.page.locator('#loginUsername');
     // 비밀번호 입력 필드
-    this.passwordInput = this.page.locator('#password');
+    this.passwordInput = this.page.locator('#loginPassword');
     // 로그인 제출 버튼
     this.submitButton = this.page.locator('button[type="submit"]');
     // 회원가입 링크
@@ -18,13 +18,11 @@ class LoginPage extends BasePage {
     this.loginForm = this.page.locator('#loginForm');
   }
 
-  // 메서드
   /**
    * 로그인 페이지로 이동
    */
   async navigate() {
     await this.goto('/login');
-    await this.wait(1000);
   }
 
   /**
@@ -36,7 +34,8 @@ class LoginPage extends BasePage {
     await this.usernameInput.fill(username);
     await this.passwordInput.fill(password);
     await this.submitButton.click();
-    await this.wait(2000); // 로그인 처리 대기
+    await this.waitForPageTransition();
+    await this.wait(1000); // 로그인 처리 대기
   }
 }
 

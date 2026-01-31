@@ -11,7 +11,7 @@ dotenv.config();
 class BasePage {
   constructor(page) {
     this.page = page;
-    this.baseURL = 'http://192.168.219.103:3000';
+    this.baseURL = process.env.BASE_URL || 'http://192.168.219.103:3000';
     // 기본 요소들
     this.body = this.page.locator('body');
     this.navigation = this.page.locator('nav, header, .navbar');
@@ -27,6 +27,7 @@ class BasePage {
     const url = path.startsWith('http') ? path : `${this.baseURL}${path}`;
     await this.page.goto(url);
     await this.page.waitForLoadState('networkidle');
+    await this.waitForPageTransition(); // 페이지 전환 대기
   }
 
   /**
@@ -35,6 +36,13 @@ class BasePage {
    */
   async wait(ms) {
     await this.page.waitForTimeout(ms);
+  }
+
+  /**
+   * 페이지 전환 대기 (화면 깜빡임 방지)
+   */
+  async waitForPageTransition() {
+    await this.page.waitForTimeout(300);
   }
 
   /**
@@ -58,7 +66,7 @@ class BasePage {
     // 로그아웃 링크 클릭
     if (await this.logoutLink.count() > 0) {
       await this.logoutLink.first().click();
-      await this.wait(1000);
+      await this.waitForPageTransition();
     } else {
       // 로그아웃 링크가 없으면 로그인 페이지로 이동
       await this.goto('/login');

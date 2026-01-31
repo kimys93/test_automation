@@ -15,7 +15,7 @@ pipeline {
         BUILD_NUMBER = "${env.BUILD_NUMBER}"
         
         // ReportPortal 설정
-        RP_ENDPOINT = "${env.RP_ENDPOINT ?: 'http://IP주소:8082/api/v1'}"
+        RP_ENDPOINT = "${env.RP_ENDPOINT ?: 'http://172.20.212.161:8082/api/v1'}"
         // RP_TOKEN은 Jenkins Credential로 관리 (credential ID: 'reportportal-token')
         // RP_ENABLED, RP_PROJECT, RP_LAUNCH, RP_DEBUG는 코드에 하드코딩됨
     }
@@ -23,8 +23,8 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                // GitLab 저장소에서 체크아웃 (Jenkins Credentials에 'gitlab-credentials' ID로 저장 필요)
-                git url: 'http://IP주소/platformqa/macaron/test_automation.git', 
+                // GitHub 저장소에서 체크아웃
+                git url: 'https://github.com/kimys93/test_automation.git',
                      branch: 'main',
                      credentialsId: 'jenkins_test_automation'
             }
@@ -47,14 +47,14 @@ pipeline {
                         withCredentials([string(credentialsId: 'slack-reportportal-token', variable: 'RP_TOKEN')]) {
                             sh """
                                 export RP_ENABLED=true
-                                export RP_ENDPOINT=http://IP주소:8082/api/v1
+                                export RP_ENDPOINT=http://172.20.212.161:8082/api/v1
                                 export RP_TOKEN=\$RP_TOKEN
                                 export RP_PROJECT=test_automation
                                 export RP_LAUNCH=test-run-${BUILD_NUMBER}
                                 export RP_DEBUG=false
                                 export TEST_TYPE=sanity
                                 export BUILD_NUMBER=${BUILD_NUMBER}
-                                export BASE_URL=http://IP주소소:8000
+                                export BASE_URL=http://192.168.219.103:3000
                                 npm run test:sanity
                             """
                         }
@@ -132,12 +132,12 @@ pipeline {
                         }
                         
                         def testStatus = failedTests > 0 || skippedTests > 0 ? 'Fail' : 'Success'
-                        def jenkinsUrl = 'http://IP주소:8080'
+                        def jenkinsUrl = 'http://172.20.212.161:8080'
                         def jobName = env.JOB_NAME ?: 'test_automation'
                         def buildNumber = env.BUILD_NUMBER ?: '1'
                         // Allure Plugin이 생성한 리포트 URL (CSP 문제 없음)
                         def allureReportUrl = "${jenkinsUrl}/job/${jobName}/${buildNumber}/allure/"
-                        def reportPortalUrl = "http://IP주소:8082/ui/#test_automation/launches/all"
+                        def reportPortalUrl = "http://172.20.212.161:8082/ui/#test_automation/launches/all"
                         
                         // 실패한 테스트 리스트 메시지 구성
                         def failureListMessage = ""

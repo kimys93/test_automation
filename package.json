@@ -14,7 +14,9 @@
     "test:sanity": "playwright test tests-sanity",
     "test:regression": "playwright test tests-regression",
     "allure:generate": "allure generate allure-results --clean -o allure-report",
-    "allure:open": "allure open allure-report"
+    "allure:open": "allure open allure-report",
+    "test:local": "node run-test-local.js",
+    "test:local:open": "node run-test-local.js --open"
   },
   "keywords": [
     "playwright",

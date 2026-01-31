@@ -13,21 +13,26 @@ class BoardPage extends BasePage {
     // 게시글 목록 테이블
     this.postsTable = this.page.locator('table');
     // 게시글 목록 tbody
-    this.boardList = this.page.locator('#boardList');
+    this.boardList = this.page.locator('#postsList');
     // 테이블 헤더
     this.tableHeader = this.page.locator('thead');
     // 페이지네이션
     this.pagination = this.page.locator('#pagination');
     // 게시글 행들
-    this.postRows = this.page.locator('#boardList tr');
+    this.postRows = this.page.locator('#postsList tr');
+    // 검색 입력
+    this.searchInput = this.page.locator('#searchInput');
+    // 검색 버튼
+    this.searchButton = this.page.locator('#searchBtn');
+    // 검색 타입 선택
+    this.searchType = this.page.locator('#searchType');
   }
 
   /**
    * 게시판 페이지로 이동
    */
   async navigate() {
-    await this.goto('/index');
-    await this.wait(1000);
+    await this.goto('/board');
   }
 
   /**
@@ -45,7 +50,7 @@ class BoardPage extends BasePage {
   async clickPostByTitle(title) {
     const postLink = this.getPostByTitle(title);
     await postLink.click();
-    await this.wait(1000);
+    await this.waitForPageTransition();
   }
 
   /**
@@ -54,7 +59,7 @@ class BoardPage extends BasePage {
   async clickFirstPost() {
     const firstPost = this.postRows.first().locator('td:nth-child(2) a, td:nth-child(2)');
     await firstPost.click();
-    await this.wait(1000);
+    await this.waitForPageTransition();
   }
 
   /**
@@ -62,6 +67,14 @@ class BoardPage extends BasePage {
    */
   async getPostCount() {
     return await this.postRows.count();
+  }
+
+  /**
+   * 글쓰기 버튼 클릭
+   */
+  async clickWriteButton() {
+    await this.writeButton.click();
+    await this.waitForPageTransition();
   }
 }
 

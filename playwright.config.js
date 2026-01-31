@@ -29,7 +29,7 @@ function getReporters() {
     
     const rpConfig = {
       token: process.env.RP_TOKEN, // Jenkins Credential에서만 가져옴 (필수)
-      endpoint: 'http://10.10.0.30:8082/api/v1', // 환경 변수에서 가져오거나 기본값
+      endpoint: process.env.RP_ENDPOINT || 'http://172.20.212.161:8082/api/v1', // 환경 변수에서 가져오거나 기본값
       project: 'test_automation', // 환경 변수에서 가져오거나 기본값
       launch: launchName, // 환경 변수에서 가져오거나 기본값
       attributes: [
