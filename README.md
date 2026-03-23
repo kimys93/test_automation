@@ -13,7 +13,7 @@
 ## 시스템 아키텍처
 
 ```
-개발자 → GitLab → Jenkins → Playwright → ReportPortal
+개발자 → Github → Jenkins → Playwright → ReportPortal
                                               ↓
                                           Slack 알림
 ```
@@ -23,7 +23,7 @@
 ### 1. 프로젝트 클론 및 의존성 설치
 
 ```bash
-git clone http://gitlab.ngle.co.kr/platformqa/macaron/test_automation.git
+git clone http://github.com/kimys93/test_automation.git
 cd test_automation
 npm install
 ```
